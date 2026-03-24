@@ -13,7 +13,6 @@ export default function TreasuryPage() {
       </div>
 
       {/* Balance Overview */}
-      {/* TODO: [FE-11] Implement real balance from Soroban contract */}
       <div className="card">
         <div className="flex justify-between items-center">
           <div>
@@ -30,8 +29,6 @@ export default function TreasuryPage() {
       </div>
 
       {/* Pending Transactions */}
-      {/* TODO: [FE-8] Implement withdrawal proposal form */}
-      {/* TODO: [FE-9] Implement approval button */}
       <div>
         <h2 className="text-xl font-semibold text-white mb-4">
           Pending Transactions
@@ -44,7 +41,6 @@ export default function TreasuryPage() {
       </div>
 
       {/* Transaction History */}
-      {/* TODO: [FE-10] Implement transaction history table */}
       <div>
         <h2 className="text-xl font-semibold text-white mb-4">History</h2>
         <div className="card">
