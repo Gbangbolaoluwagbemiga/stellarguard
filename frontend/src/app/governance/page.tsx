@@ -33,8 +33,6 @@ export default function GovernancePage() {
       </div>
 
       {/* Proposal List */}
-      {/* TODO: [FE-13] Implement proposal list with real data */}
-      {/* TODO: [FE-16] Add vote casting UI */}
       <div>
         <h2 className="text-xl font-semibold text-white mb-4">
           Active Proposals
