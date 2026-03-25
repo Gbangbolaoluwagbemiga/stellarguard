@@ -1,150 +1,116 @@
 "use client";
 
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  ReactNode,
-} from "react";
-
-// ============================================================================
-// Types
-// ============================================================================
+  requestAccess,
+  isConnected as isFreighterConnected,
+  getPublicKey,
+  getNetwork,
+} from "@stellar/freighter-api";
 
 interface FreighterContextType {
-  /** The connected wallet address, or null if not connected. */
   address: string | null;
-  /** The current network (TESTNET, PUBLIC, FUTURENET). */
   network: string | null;
-  /** Whether the wallet is currently connecting. */
   isConnecting: boolean;
-  /** Whether the wallet is connected. */
   isConnected: boolean;
-  /** Whether Freighter extension is installed. */
   isFreighterInstalled: boolean;
-  /** Connect to the Freighter wallet. */
   connect: () => Promise<void>;
-  /** Disconnect the wallet. */
   disconnect: () => void;
-  /** Last error message, if any. */
   error: string | null;
 }
 
-// ============================================================================
-// Context
-// ============================================================================
+const FreighterContext = createContext<FreighterContextType | undefined>(undefined);
 
-const FreighterContext = createContext<FreighterContextType>({
-  address: null,
-  network: null,
-  isConnecting: false,
-  isConnected: false,
-  isFreighterInstalled: false,
-  connect: async () => {},
-  disconnect: () => {},
-  error: null,
-});
-
-// ============================================================================
-// Provider Component
-//
-// TODO: [FE-2] Complete Freighter integration:
-//   - Import @stellar/freighter-api
-//   - Implement real checkConnection on mount
-//   - Implement real connectWallet function
-//   - Handle network switching events
-// ============================================================================
-
-export function FreighterProvider({ children }: { children: ReactNode }) {
+export const FreighterProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [address, setAddress] = useState<string | null>(null);
   const [network, setNetwork] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isFreighterInstalled, setIsFreighterInstalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if Freighter is installed on mount
-  useEffect(() => {
-    const checkFreighter = async () => {
-      try {
-        // TODO: Replace with actual Freighter API check
-        // import { isConnected as checkInstalled } from "@stellar/freighter-api";
-        // const installed = await checkInstalled();
-        const installed = typeof window !== "undefined" && !!(window as any).freighter;
-        setIsFreighterInstalled(installed);
-
-        if (installed) {
-          // TODO: Auto-reconnect if previously connected
-          // const { isConnected } = await isConnected();
-          // if (isConnected) { ... }
-        }
-      } catch (err) {
-        console.error("Failed to check Freighter:", err);
-      }
-    };
-
-    checkFreighter();
-  }, []);
-
-  const connect = useCallback(async () => {
-    setIsConnecting(true);
-    setError(null);
-
+  const checkConnection = useCallback(async () => {
     try {
-      // TODO: [FE-2] Replace with actual Freighter connection:
-      // import { requestAccess, getAddress, getNetwork } from "@stellar/freighter-api";
-      // const accessResponse = await requestAccess();
-      // if (accessResponse.error) throw new Error(accessResponse.error);
-      // const addressResponse = await getAddress();
-      // const networkResponse = await getNetwork();
-      // setAddress(addressResponse.address);
-      // setNetwork(networkResponse.network);
+      const connected = await isFreighterConnected();
+      setIsFreighterInstalled(!!connected);
 
-      // Placeholder for development
-      throw new Error(
-        "Freighter wallet not integrated yet. See issue FE-2."
-      );
-    } catch (err: any) {
-      setError(err.message || "Failed to connect wallet");
-      console.error("Wallet connection failed:", err);
-    } finally {
-      setIsConnecting(false);
+      if (connected) {
+        // Optionally try to get the public key if already authorized
+        // Note: getPublicKey might throw if not authorized, but some versions return null
+        try {
+           const publicKey = await getPublicKey();
+           if (publicKey) {
+             setAddress(publicKey);
+             const currentNetwork = await getNetwork();
+             setNetwork(currentNetwork);
+           }
+        } catch (e) {
+          // User not authorized yet, that's fine
+        }
+      }
+    } catch (err) {
+      console.error("Error checking Freighter connection:", err);
     }
   }, []);
 
-  const disconnect = useCallback(() => {
+  useEffect(() => {
+    checkConnection();
+  }, [checkConnection]);
+
+  const connect = async () => {
+    setIsConnecting(true);
+    setError(null);
+    try {
+      if (!isFreighterInstalled) {
+        const stillNotConnected = !(await isFreighterConnected());
+        if (stillNotConnected) {
+          throw new Error("Freighter extension is not installed");
+        }
+        setIsFreighterInstalled(true);
+      }
+
+      const publicKey = await requestAccess();
+      if (publicKey) {
+        setAddress(publicKey);
+        const currentNetwork = await getNetwork();
+        setNetwork(currentNetwork);
+      } else {
+        setError("User denied access");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to connect to Freighter");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const disconnect = () => {
     setAddress(null);
     setNetwork(null);
     setError(null);
-  }, []);
+  };
+
+  const value = {
+    address,
+    network,
+    isConnecting,
+    isConnected: !!address,
+    isFreighterInstalled,
+    connect,
+    disconnect,
+    error,
+  };
 
   return (
-    <FreighterContext.Provider
-      value={{
-        address,
-        network,
-        isConnecting,
-        isConnected: !!address,
-        isFreighterInstalled,
-        connect,
-        disconnect,
-        error,
-      }}
-    >
+    <FreighterContext.Provider value={value}>
       {children}
     </FreighterContext.Provider>
   );
-}
+};
 
-// ============================================================================
-// Hook
-// ============================================================================
-
-export function useFreighter() {
+export const useFreighter = () => {
   const context = useContext(FreighterContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useFreighter must be used within a FreighterProvider");
   }
   return context;
-}
+};
