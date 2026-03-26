@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   // Stellar SDK requires these for browser compatibility
   webpack: (config) => {
     config.resolve.fallback = {
