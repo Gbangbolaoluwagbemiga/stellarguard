@@ -1,271 +1,321 @@
-# StellarGuard — Smart Contract Developer Guide
+# StellarGuard Smart Contract Guide
 
-> A comprehensive guide to understanding, building, and testing the StellarGuard Soroban smart contracts.
+This guide documents the Soroban contracts in `smartcontract/contracts`, the data each one stores, the public methods they expose, the events they emit, and the standard local workflow for building, testing, and deploying them.
 
-## Table of Contents
-1. [Architecture Overview](#architecture-overview)
-2. [Contracts](#contracts)
-3. [Development Setup](#development-setup)
-4. [Building](#building)
-5. [Testing](#testing)
-6. [Deployment](#deployment)
-7. [Event Reference](#event-reference)
+## Contract Architecture
 
----
-
-## Architecture Overview
-
-StellarGuard consists of **four Soroban smart contracts** working together:
-
-```
-┌──────────────────────────────────────────────────────┐
-│                  StellarGuard System                  │
-├──────────────┬──────────────┬──────────────┬─────────┤
-│   Treasury   │  Governance  │  Token Vault │  Access │
-│              │              │              │ Control │
-│ - Multi-sig  │ - Proposals  │ - Locking    │ - Roles │
-│ - Deposits   │ - Voting     │ - Vesting    │ - RBAC  │
-│ - Withdrawals│ - Quorum     │ - Emergency  │ - Perms │
-└──────────────┴──────────────┴──────────────┴─────────┘
+```mermaid
+flowchart LR
+    ACL["Access Control"] --> GOV["Governance"]
+    ACL --> TRE["Treasury"]
+    ACL --> TV["Token Vault"]
+    GOV --> TRE
+    GOV --> TV
+    TRE --> APP["Frontend / Backend Indexers"]
+    GOV --> APP
+    TV --> APP
 ```
 
-### Inter-Contract Communication
-- **Access Control** provides role-based permission checks for other contracts.
-- **Treasury** handles fund custody and multi-sig withdrawal approval.
-- **Governance** manages DAO decision-making (proposal lifecycle).
-- **Token Vault** manages time-locked tokens and vesting schedules.
+- `access-control` manages roles and permission checks that other modules can rely on.
+- `governance` manages proposal creation, voting, quorum, finalization, and proposal execution.
+- `treasury` manages native balance, token deposits, and multisig withdrawal approvals.
+- `token-vault` manages time locks, vesting schedules, and emergency unlock approvals.
 
----
+## Treasury Contract
 
-## Contracts
+Location: `smartcontract/contracts/treasury`
 
-### 1. Treasury (`contracts/treasury`)
+Purpose:
 
-**Purpose:** Multi-signature fund management. Deposits into a shared treasury require no approval, but withdrawals require multi-sig approval from designated signers.
+- Hold treasury balances.
+- Accept native and token deposits.
+- Enforce signer-based approval thresholds for withdrawals.
 
-**Key Types:**
-- `TreasuryConfig` — Admin, threshold, signer count, balance, tx count.
-- `Transaction` — Withdrawal proposal with id, to, amount, memo, approvals, executed status.
-- `DataKey` — Storage keys: `Admin`, `Threshold`, `Signers`, `Balance`, `Transaction(u64)`, etc.
-- `Error` — 12 error variants covering all failure modes.
+State schema:
 
-**Public API:**
+- `Admin`: treasury administrator.
+- `Threshold`: minimum approvals required for execution.
+- `Signers`: signer set allowed to propose, approve, and execute.
+- `Balance`: native treasury balance.
+- `Transaction(u64)`: stored withdrawal proposal.
+- `TxCounter`: monotonically increasing proposal id.
+- `Initialized`: initialization guard.
+- `TokenBalance(Address, Address)`: per depositor and per token deposit balance.
 
-| Function | Description |
-|----------|-------------|
-| `initialize(admin, threshold, signers)` | Set up the treasury with initial configuration |
-| `deposit(from, amount)` | Deposit XLM into the treasury |
-| `propose_withdrawal(proposer, to, amount, memo)` | Create a withdrawal proposal |
-| `approve(signer, tx_id)` | Approve a pending withdrawal |
-| `execute(executor, tx_id)` | Execute an approved withdrawal |
-| `add_signer(admin, new_signer)` | Add a new signer |
-| `remove_signer(admin, signer)` | Remove a signer |
-| `set_threshold(admin, new_threshold)` | Change approval threshold |
-| `get_balance()` | Query treasury balance |
-| `get_config()` | Query treasury configuration |
-| `get_transaction(tx_id)` | Query a specific transaction |
-| `get_signers()` | Query all signers |
+Core structs:
 
----
+- `Transaction`: withdrawal destination, amount, memo, approval list, execution flag, proposer, timestamp.
+- `TreasuryConfig`: admin, threshold, signer count, native balance, transaction count.
 
-### 2. Governance (`contracts/governance`)
+Public API:
 
-**Purpose:** DAO proposal and voting system. Members create proposals, vote during a defined period, and proposals are finalized based on quorum.
+- `initialize(admin, threshold, signers)`
+- `deposit(from, amount)`
+- `deposit_token(from, token_address, amount)`
+- `propose_withdrawal(proposer, to, amount, memo)`
+- `approve(signer, tx_id)`
+- `execute(executor, tx_id)`
+- `add_signer(admin, new_signer)`
+- `remove_signer(admin, signer)`
+- `set_threshold(admin, new_threshold)`
+- `get_balance()`
+- `get_token_balance(depositor, token_address)`
+- `get_config()`
+- `get_transaction(tx_id)`
+- `get_signers()`
+- `transfer_admin(current_admin, new_admin)`
+- `upgrade(admin, new_wasm_hash)`
 
-**Key Types:**
-- `ProposalAction` — `Funding`, `PolicyChange`, `AddMember`, `RemoveMember`, `General`.
-- `ProposalStatus` — `Active`, `Passed`, `Rejected`, `Executed`, `Expired`.
-- `Proposal` — Full proposal record with votes, status, and metadata.
-- `GovConfig` — Admin, member count, quorum %, voting period, proposal count.
+Events:
 
-**Public API:**
+- `(treasury, init)` payload example: `(admin_address, 2_u32, 3_u32)`
+- `(treasury, deposit)` payload example: `(depositor_address, 1_000_000_i128, 1_000_000_i128)`
+- `(treasury, dep_tok)` payload example: `(depositor_address, token_contract, 500_i128, 1_500_i128)`
+- `(treasury, propose)` payload example: `(1_u64, proposer_address, recipient_address, 3_000_000_i128)`
+- `(treasury, approve)` payload example: `(1_u64, signer_address, 2_u32)`
+- `(treasury, execute)` payload example: `(1_u64, recipient_address, 3_000_000_i128, 5_000_000_i128)`
+- `(treasury, add_sig)` payload example: `(new_signer_address, 4_u32)`
+- `(treasury, rem_sig)` payload example: `(removed_signer_address, 2_u32)`
+- `(treasury, thresh)` payload example: `(old_threshold, new_threshold)`
+- `(treasury, admin)` payload example: `(old_admin, new_admin)`
 
-| Function | Description |
-|----------|-------------|
-| `initialize(admin, members, quorum_percent, voting_period)` | Set up governance |
-| `create_proposal(proposer, title, desc, action, amount, target)` | Create new proposal |
-| `vote(voter, proposal_id, vote_for)` | Cast a vote |
-| `finalize(caller, proposal_id)` | Finalize after voting period |
-| `execute_proposal(executor, proposal_id)` | Execute a passed proposal |
-| `add_member(admin, new_member)` | Add a DAO member |
-| `remove_member(admin, member)` | Remove a DAO member |
-| `get_proposal(proposal_id)` | Query single proposal |
-| `get_config()` | Query governance config |
-| `get_members()` | Query all members |
+## Governance Contract
 
----
+Location: `smartcontract/contracts/governance`
 
-### 3. Token Vault (`contracts/token-vault`)
+Purpose:
 
-**Purpose:** Token locking with time-based release, vesting schedules with cliff periods, and multi-sig emergency unlock.
+- Let members create proposals.
+- Record votes during a fixed ledger-based voting window.
+- Finalize proposals using quorum and majority rules.
+- Execute passed proposals.
 
-**Key Types:**
-- `TokenLock` — Lock entry with id, owner, amount, locked_at, unlock_at, claimed.
-- `VestingSchedule` — Vesting with beneficiary, total_amount, claimed_amount, start_time, duration, cliff.
-- `VaultStats` — Total locked, lock count, vesting count, admin.
+State schema:
 
-**Public API:**
+- `Admin`: governance admin.
+- `Initialized`: initialization guard.
+- `Members`: voter/member list.
+- `QuorumPercent`: quorum percentage used during finalization.
+- `VotingPeriod`: voting duration in ledger sequence numbers.
+- `ProposalCounter`: monotonically increasing proposal id.
+- `Proposal(u64)`: proposal record.
+- `Vote(u64, Address)`: per-proposal vote marker to block double voting.
 
-| Function | Description |
-|----------|-------------|
-| `initialize(admin, emergency_signers, emergency_threshold)` | Set up vault |
-| `lock_tokens(owner, amount, duration, memo)` | Lock tokens |
-| `claim(owner, lock_id)` | Claim after lock expires |
-| `approve_emergency(signer, lock_id)` | Approve emergency unlock |
-| `emergency_unlock(caller, lock_id)` | Execute emergency unlock |
-| `create_vesting(admin, beneficiary, total, duration, cliff, memo)` | Create vesting |
-| `claim_vested(beneficiary, vesting_id)` | Claim vested tokens |
-| `get_lock(lock_id)` | Query a lock |
-| `get_vesting(vesting_id)` | Query a vesting schedule |
-| `get_stats()` | Query vault statistics |
+Core structs and enums:
 
----
+- `ProposalAction`: `Funding`, `PolicyChange`, `AddMember`, `RemoveMember`, `General`.
+- `ProposalStatus`: `Active`, `Passed`, `Rejected`, `Executed`, `Expired`.
+- `Proposal`: proposal metadata, vote totals, action, amount, target, and timing.
+- `GovConfig`: admin, member count, quorum percent, voting period, proposal count.
 
-### 4. Access Control (`contracts/access-control`)
+Public API:
 
-**Purpose:** Role-based access control with hierarchical permissions: **Owner > Admin > Member > Viewer**.
+- `initialize(admin, members, quorum_percent, voting_period)`
+- `create_proposal(proposer, title, description, action, amount, target)`
+- `vote(voter, proposal_id, vote_for)`
+- `finalize(caller, proposal_id)`
+- `execute_proposal(executor, proposal_id)`
+- `get_proposal(proposal_id)`
+- `get_config()`
+- `get_members()`
+- `has_voted(proposal_id, voter)`
+- `transfer_admin(current_admin, new_admin)`
+- `set_quorum(admin, new_quorum)`
+- `set_voting_period(admin, new_period)`
+- `upgrade(admin, new_wasm_hash)`
 
-**Key Types:**
-- `Role` — `Viewer (1)`, `Member (2)`, `Admin (3)`, `Owner (4)`.
-- `RoleAssignment` — Role record with address, role, assigned_at, assigned_by.
-- `AccessSummary` — Owner, total members, and count per role.
+Finalization logic:
 
-**Public API:**
+- Voting must be over: `current_ledger > ends_at`.
+- Quorum is calculated as `(member_count * quorum_percent) / 100`.
+- If `total_votes < quorum`, status becomes `Expired`.
+- If quorum is met and `votes_for > votes_against`, status becomes `Passed`.
+- Otherwise status becomes `Rejected`.
 
-| Function | Description |
-|----------|-------------|
-| `initialize(owner)` | Set up access control |
-| `assign_role(assignor, target, role)` | Assign a role |
-| `revoke_role(revoker, target)` | Revoke a role |
-| `has_permission(address, required_role)` | Check permission |
-| `is_owner(address)` | Check if owner |
-| `is_admin_or_above(address)` | Check admin+ |
-| `is_member_or_above(address)` | Check member+ |
-| `get_role(address)` | Query role assignment |
-| `get_all_members()` | Query all members |
-| `get_summary()` | Query access summary |
+Events:
 
----
+- `(gov, init)` payload example: `(admin_address, 3_u32, 50_u32)`
+- `(gov, propose)` payload example: `(1_u64, proposer_address, ends_at_ledger, target_address, 0_i128)`
+- `(gov, vote)` payload example: `(1_u64, voter_address, true)`
+- `(gov, finalize)` payload example: `(1_u64, ProposalStatus::Passed)`
+- `(gov, exec)` payload example: `(1_u64, executor_address)`
+- `(gov, admin)` payload example: `(old_admin, new_admin)`
+- `(gov, quorum)` payload example: `(50_u32, 66_u32)`
+- `(gov, period)` payload example: `(1000_u32, 2000_u32)`
 
-## Development Setup
+## Token Vault Contract
 
-### Prerequisites
-- **Rust**: Install via [rustup](https://rustup.rs/)
-- **Soroban CLI**: `cargo install soroban-cli`
-- **WASM target**: `rustup target add wasm32-unknown-unknown`
+Location: `smartcontract/contracts/token-vault`
 
-### Install
+Purpose:
+
+- Lock tokens until a future timestamp.
+- Create vesting schedules with cliffs and linear release.
+- Require multiple emergency signers for emergency unlock.
+
+State schema:
+
+- `Admin`: vault admin.
+- `Initialized`: initialization guard.
+- `EmergencySigners`: addresses allowed to approve emergency unlocks.
+- `EmergencyThreshold`: number of approvals required.
+- `LockCounter`: monotonically increasing lock id.
+- `Lock(u64)`: stored lock record.
+- `EmergencyApprovals(u64)`: collected approvers for a lock.
+- `VestingCounter`: monotonically increasing vesting id.
+- `Vesting(u64)`: stored vesting schedule.
+- `TotalLocked`: aggregate locked or unclaimed amount.
+
+Core structs:
+
+- `TokenLock`: owner, amount, created time, unlock time, claimed state, memo.
+- `VestingSchedule`: beneficiary, total amount, claimed amount, start time, duration, cliff, memo.
+- `VaultStats`: total locked, lock count, vesting count, admin.
+
+Public API:
+
+- `initialize(admin, emergency_signers, emergency_threshold)`
+- `lock_tokens(owner, amount, duration, memo)`
+- `claim(owner, lock_id)`
+- `approve_emergency(signer, lock_id)`
+- `emergency_unlock(caller, lock_id)`
+- `create_vesting(admin, beneficiary, total_amount, duration, cliff, memo)`
+- `claim_vested(beneficiary, vesting_id)`
+- `get_lock(lock_id)`
+- `get_vesting(vesting_id)`
+- `get_stats()`
+- `transfer_admin(current_admin, new_admin)`
+- `upgrade(admin, new_wasm_hash)`
+
+Events:
+
+- `(vault, init)` payload example: `(admin_address, 2_u32)`
+- `(vault, lock)` payload example: `(1_u64, owner_address, 400_000_i128, 120_u64)`
+- `(vault, claim)` payload example: `(1_u64, owner_address, 400_000_i128)`
+- `(vault, vest)` payload example: `(1_u64, beneficiary_address, 900_000_i128, 90_u64)`
+- `(vault, v_claim)` payload example: `(1_u64, beneficiary_address, 450_000_i128)`
+- `(vault, emrg_ap)` payload example: `(1_u64, signer_address, 2_u32)`
+- `(vault, emrg_ex)` payload example: `(1_u64, caller_address, 700_000_i128)`
+- `(vault, admin)` payload example: `(old_admin, new_admin)`
+
+## Access Control Contract
+
+Location: `smartcontract/contracts/access-control`
+
+Purpose:
+
+- Store the role hierarchy used across the system.
+- Support ownership transfer and permission queries.
+
+State schema:
+
+- `Initialized`: initialization guard.
+- `Owner`: contract owner.
+- `Role(Address)`: stored `RoleAssignment` for an address.
+- `AllMembers`: address list for all assigned roles.
+- `RoleCount(u32)`: count of addresses per role level.
+
+Core structs and enums:
+
+- `Role`: `Viewer`, `Member`, `Admin`, `Owner`.
+- `RoleAssignment`: address, role, assignment time, assignor.
+- `AccessSummary`: owner plus counts of each role class.
+
+Public API:
+
+- `initialize(owner)`
+- `assign_role(assignor, target, role)`
+- `revoke_role(revoker, target)`
+- `has_permission(address, required_role)`
+- `is_owner(address)`
+- `is_admin_or_above(address)`
+- `is_member_or_above(address)`
+- `get_role(address)`
+- `get_all_members()`
+- `get_summary()`
+- `transfer_ownership(current_owner, new_owner)`
+- `upgrade(owner, new_wasm_hash)`
+
+Events:
+
+- `(acl, init)` payload example: `owner_address`
+- `(acl, assign)` payload example: `(target_address, Role::Member, assignor_address)`
+- `(acl, revoke)` payload example: `(target_address, revoker_address)`
+- `(acl, owner)` payload example: `(old_owner, new_owner)`
+
+## Local Development Setup
+
+Prerequisites:
+
+- Rust toolchain via [rustup](https://rustup.rs/)
+- `wasm32-unknown-unknown` target
+- Soroban CLI
+
+Recommended setup:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install soroban-cli
+cd smartcontract
+cargo build --workspace
+```
+
+## Testing Guide
+
+Run the full contract suite:
+
 ```bash
 cd smartcontract
-cargo build --all
+cargo test --workspace
 ```
 
----
-
-## Building
+Run one contract at a time:
 
 ```bash
-# Build all contracts
-cd smartcontract
-cargo build --all
-
-# Build optimized WASM (for deployment)
-soroban contract build
-
-# The output WASM files will be in:
-# target/wasm32-unknown-unknown/release/
-```
-
----
-
-## Testing
-
-```bash
-# Run all tests
-cd smartcontract
-cargo test --all
-
-# Run tests for a specific contract
 cargo test -p stellar-guard-treasury
 cargo test -p stellar-guard-governance
 cargo test -p stellar-guard-token-vault
 cargo test -p stellar-guard-access-control
-
-# Run with output
-cargo test --all -- --nocapture
 ```
 
----
+The workflow tests cover:
 
-## Deployment
+- Treasury: initialize -> deposit -> propose -> approve -> execute
+- Governance: initialize -> propose -> vote -> finalize -> execute
+- Token vault lock flow: lock -> wait -> claim
+- Token vault vesting flow: create -> cliff -> partial claim -> full claim
+- Emergency unlock flow: approvals -> threshold reached -> unlock
 
-### Testnet Deployment
+## Deployment Instructions
+
+Build optimized WASM:
+
 ```bash
-# 1. Generate a deployer keypair (or use existing)
-soroban keys generate deployer --network testnet
+cd smartcontract
+soroban contract build
+```
 
-# 2. Fund the deployer
+Deploy a contract to testnet:
+
+```bash
+soroban keys generate deployer --network testnet
 soroban keys fund deployer --network testnet
 
-# 3. Build optimized WASM
-soroban contract build
-
-# 4. Deploy each contract
 soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/stellar_guard_treasury.wasm \
+  --wasm target/wasm32-unknown-unknown/release/stellar_guard_governance.wasm \
   --source deployer \
   --network testnet
-
-# 5. Save the returned contract ID
 ```
 
-Repeat for each contract (governance, token-vault, access-control).
+Repeat the deploy step for:
 
----
+- `stellar_guard_treasury.wasm`
+- `stellar_guard_governance.wasm`
+- `stellar_guard_token_vault.wasm`
+- `stellar_guard_access_control.wasm`
 
-## Event Reference
+Post-deployment checklist:
 
-### Treasury Events
-| Topic | Data | Description |
-|-------|------|-------------|
-| `(treasury, init)` | `(admin, threshold, signer_count)` | Contract initialized |
-| `(treasury, deposit)` | `(from, amount, new_balance)` | Deposit received |
-| `(treasury, propose)` | `(tx_id, proposer, to, amount)` | Withdrawal proposed |
-| `(treasury, approve)` | `(tx_id, signer, approval_count)` | Approval added |
-| `(treasury, execute)` | `(tx_id, to, amount, new_balance)` | Withdrawal executed |
-
-**Treasury Event Schemas**
-| Event | Fields |
-|-------|--------|
-| `(treasury, init)` | `admin: Address`, `threshold: u32`, `signer_count: u32` |
-| `(treasury, deposit)` | `from: Address`, `amount: i128`, `new_balance: i128` |
-| `(treasury, propose)` | `tx_id: u64`, `proposer: Address`, `to: Address`, `amount: i128` |
-| `(treasury, approve)` | `tx_id: u64`, `signer: Address`, `approval_count: u32` |
-| `(treasury, execute)` | `tx_id: u64`, `to: Address`, `amount: i128`, `new_balance: i128` |
-
-### Governance Events
-| Topic | Data | Description |
-|-------|------|-------------|
-| `(gov, init)` | `(admin, member_count, quorum)` | Contract initialized |
-| `(gov, propose)` | `(proposal_id, proposer, action)` | Proposal created |
-| `(gov, vote)` | `(proposal_id, voter, vote_for, total)` | Vote cast |
-| `(gov, final)` | `(proposal_id, status)` | Proposal finalized |
-| `(gov, exec)` | `(proposal_id, executor)` | Proposal executed |
-
-### Token Vault Events
-| Topic | Data | Description |
-|-------|------|-------------|
-| `(vault, lock)` | `(lock_id, owner, amount, duration)` | Tokens locked |
-| `(vault, claim)` | `(lock_id, owner, amount)` | Lock claimed |
-| `(vault, vest)` | `(vesting_id, beneficiary, amount, duration)` | Vesting created |
-| `(vault, v_claim)` | `(vesting_id, beneficiary, amount)` | Vested tokens claimed |
-| `(vault, emrg_ap)` | `(lock_id, signer, approval_count)` | Emergency approval |
-| `(vault, emrg_ex)` | `(lock_id, caller, amount)` | Emergency unlock executed |
-
-### Access Control Events
-| Topic | Data | Description |
-|-------|------|-------------|
-| `(acl, init)` | `(owner)` | Contract initialized |
-| `(acl, assign)` | `(target, role, assignor)` | Role assigned |
-| `(acl, revoke)` | `(target, revoker)` | Role revoked |
-| `(acl, owner)` | `(old_owner, new_owner)` | Ownership transferred |
+- Save each returned contract id.
+- Initialize each contract with production admin and signer/member addresses.
+- Update frontend and backend configuration with deployed ids and RPC settings.

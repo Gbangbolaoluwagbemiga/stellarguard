@@ -7,7 +7,6 @@ import {
   SorobanRpc,
   TransactionBuilder,
   Transaction,
-  Networks,
   nativeToScVal,
   Address,
   xdr,
@@ -32,6 +31,21 @@ export const CONTRACT_IDS = {
 
 const server = new SorobanRpc.Server(SOROBAN_RPC_URL);
 
+export type GovernanceProposalAction =
+  | "Funding"
+  | "PolicyChange"
+  | "AddMember"
+  | "RemoveMember"
+  | "General";
+
+const GOVERNANCE_ACTIONS: readonly GovernanceProposalAction[] = [
+  "Funding",
+  "PolicyChange",
+  "AddMember",
+  "RemoveMember",
+  "General",
+];
+
 // ============================================================================
 // Soroban RPC Helpers
 // ============================================================================
@@ -40,7 +54,7 @@ export async function buildContractCall(
   contractId: string,
   method: string,
   args: xdr.ScVal[],
-  sourceAddress: string
+  sourceAddress: string,
 ): Promise<TransactionBuilder> {
   const account = await server.getAccount(sourceAddress);
   const contract = new Contract(contractId);
@@ -56,7 +70,7 @@ export async function buildContractCall(
 }
 
 export async function signAndSubmit(
-  transaction: Transaction
+  transaction: Transaction,
 ): Promise<SorobanRpc.Api.GetTransactionResponse> {
   const signedXdr = await signTransaction(transaction.toXDR(), {
     networkPassphrase: NETWORK_PASSPHRASE,
@@ -64,7 +78,7 @@ export async function signAndSubmit(
 
   const signedTx = TransactionBuilder.fromXDR(
     signedXdr,
-    NETWORK_PASSPHRASE
+    NETWORK_PASSPHRASE,
   ) as Transaction;
 
   const sendResponse = await server.sendTransaction(signedTx);
@@ -90,16 +104,14 @@ export async function signAndSubmit(
       return getResponse;
     }
 
-    throw new Error(
-      `Transaction failed with status: ${getResponse.status}`
-    );
+    throw new Error(`Transaction failed with status: ${getResponse.status}`);
   }
 }
 
 export async function readContractValue(
   contractId: string,
   method: string,
-  args: xdr.ScVal[] = []
+  args: xdr.ScVal[] = [],
 ): Promise<any> {
   const contract = new Contract(contractId);
 
@@ -122,6 +134,37 @@ export async function readContractValue(
   throw new Error("Contract read failed");
 }
 
+function toAddressScVal(value: string): xdr.ScVal {
+  return nativeToScVal(Address.fromString(value), { type: "address" });
+}
+
+function toSymbolScVal(value: string, fieldName: string): xdr.ScVal {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`${fieldName} cannot be empty`);
+  }
+
+  return nativeToScVal(normalized, { type: "symbol" });
+}
+
+function toProposalActionScVal(action: string): xdr.ScVal {
+  const normalized = action.trim() as GovernanceProposalAction;
+  if (!GOVERNANCE_ACTIONS.includes(normalized)) {
+    throw new Error(
+      `Unsupported governance action "${action}". Expected one of: ${GOVERNANCE_ACTIONS.join(", ")}`,
+    );
+  }
+
+  return xdr.ScVal.scvVec([toSymbolScVal(normalized, "action")]);
+}
+
+async function buildTransactionXdr(
+  builderPromise: Promise<TransactionBuilder>,
+): Promise<string> {
+  const builder = await builderPromise;
+  return builder.build().toXDR();
+}
+
 // ============================================================================
 // Treasury Transaction Builders
 // ============================================================================
@@ -129,12 +172,9 @@ export async function readContractValue(
 export async function buildDepositTx(
   contractId: string,
   from: string,
-  amount: number
+  amount: number,
 ): Promise<TransactionBuilder> {
-  const args = [
-    nativeToScVal(Address.fromString(from), { type: "address" }),
-    nativeToScVal(amount, { type: "i128" }),
-  ];
+  const args = [toAddressScVal(from), nativeToScVal(amount, { type: "i128" })];
 
   return buildContractCall(contractId, "deposit", args, from);
 }
@@ -144,11 +184,11 @@ export async function buildProposeWithdrawalTx(
   proposer: string,
   to: string,
   amount: number,
-  memo: string
+  memo: string,
 ): Promise<TransactionBuilder> {
   const args = [
-    nativeToScVal(Address.fromString(proposer), { type: "address" }),
-    nativeToScVal(Address.fromString(to), { type: "address" }),
+    toAddressScVal(proposer),
+    toAddressScVal(to),
     nativeToScVal(amount, { type: "i128" }),
     nativeToScVal(memo, { type: "string" }),
   ];
@@ -159,12 +199,9 @@ export async function buildProposeWithdrawalTx(
 export async function buildApproveTx(
   contractId: string,
   signer: string,
-  txId: number
+  txId: number,
 ): Promise<TransactionBuilder> {
-  const args = [
-    nativeToScVal(Address.fromString(signer), { type: "address" }),
-    nativeToScVal(txId, { type: "u64" }),
-  ];
+  const args = [toAddressScVal(signer), nativeToScVal(txId, { type: "u64" })];
 
   return buildContractCall(contractId, "approve", args, signer);
 }
@@ -172,12 +209,9 @@ export async function buildApproveTx(
 export async function buildExecuteTx(
   contractId: string,
   executor: string,
-  txId: number
+  txId: number,
 ): Promise<TransactionBuilder> {
-  const args = [
-    nativeToScVal(Address.fromString(executor), { type: "address" }),
-    nativeToScVal(txId, { type: "u64" }),
-  ];
+  const args = [toAddressScVal(executor), nativeToScVal(txId, { type: "u64" })];
 
   return buildContractCall(contractId, "execute", args, executor);
 }
@@ -193,28 +227,50 @@ export async function buildCreateProposalTx(
   description: string,
   action: string,
   amount: number,
-  target: string
+  target: string,
 ): Promise<TransactionBuilder> {
   const args = [
-    nativeToScVal(Address.fromString(proposer), { type: "address" }),
-    nativeToScVal(title, { type: "symbol" }),
-    nativeToScVal(description, { type: "symbol" }),
-    nativeToScVal(action, { type: "symbol" }),
+    toAddressScVal(proposer),
+    toSymbolScVal(title, "title"),
+    toSymbolScVal(description, "description"),
+    toProposalActionScVal(action),
     nativeToScVal(amount, { type: "i128" }),
-    nativeToScVal(Address.fromString(target), { type: "address" }),
+    toAddressScVal(target),
   ];
 
   return buildContractCall(contractId, "create_proposal", args, proposer);
+}
+
+export async function buildCreateProposalXdr(
+  contractId: string,
+  proposer: string,
+  title: string,
+  description: string,
+  action: string,
+  amount: number,
+  target: string,
+): Promise<string> {
+  return buildTransactionXdr(
+    buildCreateProposalTx(
+      contractId,
+      proposer,
+      title,
+      description,
+      action,
+      amount,
+      target,
+    ),
+  );
 }
 
 export async function buildVoteTx(
   contractId: string,
   voter: string,
   proposalId: number,
-  voteFor: boolean
+  voteFor: boolean,
 ): Promise<TransactionBuilder> {
   const args = [
-    nativeToScVal(Address.fromString(voter), { type: "address" }),
+    toAddressScVal(voter),
     nativeToScVal(proposalId, { type: "u64" }),
     nativeToScVal(voteFor, { type: "bool" }),
   ];
@@ -222,28 +278,57 @@ export async function buildVoteTx(
   return buildContractCall(contractId, "vote", args, voter);
 }
 
+export async function buildVoteXdr(
+  contractId: string,
+  voter: string,
+  proposalId: number,
+  voteFor: boolean,
+): Promise<string> {
+  return buildTransactionXdr(
+    buildVoteTx(contractId, voter, proposalId, voteFor),
+  );
+}
+
 export async function buildFinalizeTx(
   contractId: string,
   caller: string,
-  proposalId: number
+  proposalId: number,
 ): Promise<TransactionBuilder> {
   const args = [
-    nativeToScVal(Address.fromString(caller), { type: "address" }),
+    toAddressScVal(caller),
     nativeToScVal(proposalId, { type: "u64" }),
   ];
 
   return buildContractCall(contractId, "finalize", args, caller);
 }
 
+export async function buildFinalizeXdr(
+  contractId: string,
+  caller: string,
+  proposalId: number,
+): Promise<string> {
+  return buildTransactionXdr(buildFinalizeTx(contractId, caller, proposalId));
+}
+
 export async function buildExecuteProposalTx(
   contractId: string,
   executor: string,
-  proposalId: number
+  proposalId: number,
 ): Promise<TransactionBuilder> {
   const args = [
-    nativeToScVal(Address.fromString(executor), { type: "address" }),
+    toAddressScVal(executor),
     nativeToScVal(proposalId, { type: "u64" }),
   ];
 
   return buildContractCall(contractId, "execute_proposal", args, executor);
+}
+
+export async function buildExecuteProposalXdr(
+  contractId: string,
+  executor: string,
+  proposalId: number,
+): Promise<string> {
+  return buildTransactionXdr(
+    buildExecuteProposalTx(contractId, executor, proposalId),
+  );
 }
