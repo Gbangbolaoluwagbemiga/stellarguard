@@ -23,24 +23,33 @@ import {
   createLatestRequestGuard,
   isAbortError,
 } from "@/lib/requestGuard";
+import { classifyError, type AppError } from "@/lib/errors";
 import { useFreighter } from "./useFreighter";
 
 const REFRESH_INTERVAL = 30_000;
+
+/**
+ * Represents a locally-pending vote that has been submitted but not yet
+ * confirmed on chain. Used to drive optimistic UI updates.
+ */
+export interface PendingVote {
+  proposalId: number;
+  voteFor: boolean;
+}
 
 export function useGovernance() {
   const { address } = useFreighter();
   const [config, setConfig] = useState<GovernanceConfig | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+
+  // Maps proposalId → voteFor for votes that are in-flight.
+  // UI reads this to reflect intent before chain confirmation.
+  const [pendingVotes, setPendingVotes] = useState<ReadonlyMap<number, boolean>>(
+    new Map(),
+  );
+
   const requestGuardRef = useRef(createLatestRequestGuard());
-
-  const getErrorMessage = useCallback((err: unknown, fallback: string) => {
-    if (err instanceof Error) {
-      return err.message;
-    }
-
-    return fallback;
-  }, []);
 
   const fetchConfig = useCallback(
     async (requestId: number, signal: AbortSignal) => {
@@ -81,12 +90,12 @@ export function useGovernance() {
       }
 
       if (requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to fetch governance config"));
+        setError(classifyError(err));
       }
 
       throw err;
     }
-  }, [fetchConfig, getErrorMessage]);
+  }, [fetchConfig]);
 
   const getProposal = useCallback(
     async (id: number): Promise<GovernanceProposal> => {
@@ -113,13 +122,13 @@ export function useGovernance() {
         }
 
         if (requestGuardRef.current.isCurrent(request.id)) {
-          setError(getErrorMessage(err, "Failed to fetch proposal"));
+          setError(classifyError(err));
         }
 
         throw err;
       }
     },
-    [address, getErrorMessage],
+    [address],
   );
 
   const createProposal = async (
@@ -150,7 +159,7 @@ export function useGovernance() {
       await fetchConfig(request.id, request.signal);
     } catch (err: unknown) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to create proposal"));
+        setError(classifyError(err));
       }
 
       throw err;
@@ -163,6 +172,12 @@ export function useGovernance() {
 
   const vote = async (proposalId: number, voteFor: boolean): Promise<void> => {
     if (!address) throw new Error("Wallet not connected");
+
+    // Optimistically record the pending vote so the UI reflects intent
+    // instantly — the counter updates before the chain confirms.
+    setPendingVotes((prev: ReadonlyMap<number, boolean>) =>
+      new Map(Array.from(prev).concat([[proposalId, voteFor]])),
+    );
 
     const request = requestGuardRef.current.begin();
     setError(null);
@@ -178,12 +193,27 @@ export function useGovernance() {
       const built = tx.build();
       await signAndSubmit(built);
     } catch (err: unknown) {
+      // Rollback: remove the optimistic entry so the UI reverts to real data.
+      setPendingVotes((prev: ReadonlyMap<number, boolean>) => {
+        const next = new Map(Array.from(prev));
+        next.delete(proposalId);
+        return next;
+      });
+
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to vote"));
+        setError(classifyError(err));
       }
 
       throw err;
     } finally {
+      // Always clear the pending entry — on success the refreshed chain data
+      // will carry the confirmed vote count.
+      setPendingVotes((prev: ReadonlyMap<number, boolean>) => {
+        const next = new Map(Array.from(prev));
+        next.delete(proposalId);
+        return next;
+      });
+
       if (requestGuardRef.current.isCurrent(request.id)) {
         setIsLoading(false);
       }
@@ -208,7 +238,7 @@ export function useGovernance() {
       await fetchConfig(request.id, request.signal);
     } catch (err: unknown) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to finalize proposal"));
+        setError(classifyError(err));
       }
 
       throw err;
@@ -237,7 +267,7 @@ export function useGovernance() {
       await fetchConfig(request.id, request.signal);
     } catch (err: unknown) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to execute proposal"));
+        setError(classifyError(err));
       }
 
       throw err;
@@ -278,13 +308,13 @@ export function useGovernance() {
         }
 
         if (requestGuardRef.current.isCurrent(request.id)) {
-          setError(getErrorMessage(err, "Failed to check vote status"));
+          setError(classifyError(err));
         }
 
         throw err;
       }
     },
-    [address, getErrorMessage],
+    [address],
   );
 
   const refresh = useCallback(async () => {
@@ -299,14 +329,14 @@ export function useGovernance() {
       await fetchConfig(request.id, request.signal);
     } catch (err) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to refresh governance data"));
+        setError(classifyError(err));
       }
     } finally {
       if (requestGuardRef.current.isCurrent(request.id)) {
         setIsLoading(false);
       }
     }
-  }, [fetchConfig, getErrorMessage]);
+  }, [fetchConfig]);
 
   useEffect(() => {
     refresh();
@@ -328,6 +358,12 @@ export function useGovernance() {
     config,
     isLoading,
     error,
+    /**
+     * Map of proposalId → voteFor for votes currently in-flight.
+     * Use for optimistic UI — read this to reflect user intent
+     * before the chain confirms.
+     */
+    pendingVotes,
     getConfig,
     getProposal,
     createProposal,

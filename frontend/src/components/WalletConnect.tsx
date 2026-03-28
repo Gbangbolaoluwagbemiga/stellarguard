@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useFreighter } from "@/context/FreighterProvider";
+import { useFreighter } from "@/hooks/useFreighter";
 import { formatAddress } from "@/lib/formatters";
 
 export const WalletConnect = () => {
