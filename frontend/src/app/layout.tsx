@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { FreighterProvider } from "@/context/FreighterProvider";
 import { WalletConnect } from "@/components/WalletConnect";
+import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 
 
 export const metadata: Metadata = {
@@ -89,6 +90,7 @@ export default function RootLayout({
               </div>
             </div>
           </footer>
+          <DiagnosticsPanel />
         </FreighterProvider>
       </body>
     </html>
