@@ -11,6 +11,18 @@
 6. [Contract Interaction Pattern](#contract-interaction-pattern)
 7. [Components](#components)
 8. [Adding Features](#adding-features)
+9. [Architecture Decision Records](#architecture-decision-records)
+
+## Architecture Decision Records
+
+Major frontend design decisions are documented as ADRs in [`docs/adr/`](./adr/):
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [000](./adr/000-template.md) | ADR Template | - |
+| [001](./adr/001-wallet-integration.md) | Wallet Integration via Freighter Provider | Accepted |
+| [002](./adr/002-data-loading.md) | Data Loading via Custom Hooks with Request Guards | Accepted |
+| [003](./adr/003-transaction-pipeline.md) | Transaction Pipeline with Lifecycle Tracking | Accepted |
 
 ---
 
