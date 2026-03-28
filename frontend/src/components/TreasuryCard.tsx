@@ -1,6 +1,3 @@
-// TODO: [FE-11] Implement TreasuryCard with real data
-// TODO: [FE-9] Add approval button functionality
-
 import { formatAddress, formatXlm } from "@/lib/formatters";
 
 interface TreasuryCardProps {
@@ -18,11 +15,20 @@ interface TreasuryCardProps {
   threshold?: number;
   /** Whether the transaction has been executed */
   executed?: boolean;
+  /**
+   * Whether an approval for this transaction is currently in-flight.
+   * When true the button shows a pending state immediately (optimistic UI),
+   * before the chain confirms the approval.
+   */
+  isPendingApproval?: boolean;
+  /** Called when the user clicks Approve. Receives the txId. */
+  onApprove?: (txId: number) => void;
 }
 
 /**
  * Card component for displaying a treasury transaction.
  * Shows transaction details, approval progress, and action buttons.
+ * Supports optimistic approval state via `isPendingApproval`.
  */
 export function TreasuryCard({
   txId = 0,
@@ -32,6 +38,8 @@ export function TreasuryCard({
   approvals = 0,
   threshold = 1,
   executed = false,
+  isPendingApproval = false,
+  onApprove,
 }: TreasuryCardProps) {
   const statusColor = executed
     ? "text-gray-400"
@@ -45,6 +53,12 @@ export function TreasuryCard({
       ? "Ready"
       : "Pending";
 
+  const canApprove = !executed && !isPendingApproval && !!onApprove;
+
+  const handleApprove = () => {
+    if (canApprove) onApprove(txId);
+  };
+
   return (
     <div className="card flex justify-between items-center">
       <div className="flex-1">
@@ -53,6 +67,11 @@ export function TreasuryCard({
           <span className={`text-xs font-semibold ${statusColor}`}>
             {statusText}
           </span>
+          {isPendingApproval && (
+            <span className="text-xs font-semibold text-primary-400 animate-pulse">
+              Approving…
+            </span>
+          )}
         </div>
         <p className="text-white font-semibold mt-1">
           {formatXlm(amount)} XLM → {formatAddress(to, { startChars: 6, endChars: 4 })}
@@ -64,8 +83,14 @@ export function TreasuryCard({
           {approvals}/{threshold} approvals
         </p>
         {!executed && (
-          <button className="btn-primary text-xs mt-2 py-1 px-3">
-            Approve
+          <button
+            className={`btn-primary text-xs mt-2 py-1 px-3 ${
+              isPendingApproval ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            disabled={isPendingApproval || !onApprove}
+            onClick={handleApprove}
+          >
+            {isPendingApproval ? "Approving…" : "Approve"}
           </button>
         )}
       </div>

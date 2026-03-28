@@ -8,7 +8,7 @@ import {
   getNetwork,
 } from "@stellar/freighter-api";
 
-interface FreighterContextType {
+export interface FreighterContextType {
   address: string | null;
   network: string | null;
   isConnecting: boolean;

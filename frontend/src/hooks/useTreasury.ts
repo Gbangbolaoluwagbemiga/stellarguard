@@ -19,6 +19,7 @@ import {
   createLatestRequestGuard,
   isAbortError,
 } from "@/lib/requestGuard";
+import { classifyError, type AppError } from "@/lib/errors";
 import { useFreighter } from "./useFreighter";
 
 const REFRESH_INTERVAL = 30_000;
@@ -28,16 +29,15 @@ export function useTreasury() {
   const [balance, setBalance] = useState<bigint>(BigInt(0));
   const [config, setConfig] = useState<TreasuryConfig | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+
+  // Tracks txIds currently being approved optimistically.
+  // UI can reflect intent before chain confirmation.
+  const [pendingApprovalIds, setPendingApprovalIds] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+
   const requestGuardRef = useRef(createLatestRequestGuard());
-
-  const getErrorMessage = useCallback((err: unknown, fallback: string) => {
-    if (err instanceof Error) {
-      return err.message;
-    }
-
-    return fallback;
-  }, []);
 
   const fetchBalance = useCallback(
     async (requestId: number, signal: AbortSignal) => {
@@ -100,12 +100,12 @@ export function useTreasury() {
       }
 
       if (requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to fetch balance"));
+        setError(classifyError(err));
       }
 
       throw err;
     }
-  }, [fetchBalance, getErrorMessage]);
+  }, [fetchBalance]);
 
   const getConfig = useCallback(async () => {
     const request = requestGuardRef.current.begin();
@@ -124,12 +124,12 @@ export function useTreasury() {
       }
 
       if (requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to fetch config"));
+        setError(classifyError(err));
       }
 
       throw err;
     }
-  }, [fetchConfig, getErrorMessage]);
+  }, [fetchConfig]);
 
   const refresh = useCallback(async () => {
     const request = requestGuardRef.current.begin();
@@ -146,14 +146,14 @@ export function useTreasury() {
       ]);
     } catch (err) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Failed to refresh treasury data"));
+        setError(classifyError(err));
       }
     } finally {
       if (requestGuardRef.current.isCurrent(request.id)) {
         setIsLoading(false);
       }
     }
-  }, [fetchBalance, fetchConfig, getErrorMessage]);
+  }, [fetchBalance, fetchConfig]);
 
   const deposit = async (amount: number): Promise<void> => {
     if (!address) throw new Error("Wallet not connected");
@@ -169,7 +169,7 @@ export function useTreasury() {
       await fetchBalance(request.id, request.signal);
     } catch (err: unknown) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Deposit failed"));
+        setError(classifyError(err));
       }
 
       throw err;
@@ -204,7 +204,7 @@ export function useTreasury() {
       await fetchConfig(request.id, request.signal);
     } catch (err: unknown) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Propose withdrawal failed"));
+        setError(classifyError(err));
       }
 
       throw err;
@@ -217,6 +217,10 @@ export function useTreasury() {
 
   const approve = async (txId: number): Promise<void> => {
     if (!address) throw new Error("Wallet not connected");
+
+    // Optimistically mark this txId as pending so the UI reflects intent
+    // immediately, before the chain confirms.
+    setPendingApprovalIds((prev: ReadonlySet<number>) => new Set(Array.from(prev).concat(txId)));
 
     const request = requestGuardRef.current.begin();
     setError(null);
@@ -231,12 +235,27 @@ export function useTreasury() {
         fetchConfig(request.id, request.signal),
       ]);
     } catch (err: unknown) {
+      // Rollback: the optimistic mark is deterministically removed on any failure.
+      setPendingApprovalIds((prev: ReadonlySet<number>) => {
+        const next = new Set(Array.from(prev));
+        next.delete(txId);
+        return next;
+      });
+
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Approve failed"));
+        setError(classifyError(err));
       }
 
       throw err;
     } finally {
+      // Remove from pending regardless of outcome — on success the refreshed
+      // chain data will reflect the real approval count.
+      setPendingApprovalIds((prev: ReadonlySet<number>) => {
+        const next = new Set(Array.from(prev));
+        next.delete(txId);
+        return next;
+      });
+
       if (requestGuardRef.current.isCurrent(request.id)) {
         setIsLoading(false);
       }
@@ -260,7 +279,7 @@ export function useTreasury() {
       ]);
     } catch (err: unknown) {
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
-        setError(getErrorMessage(err, "Execute failed"));
+        setError(classifyError(err));
       }
 
       throw err;
@@ -292,6 +311,8 @@ export function useTreasury() {
     config,
     isLoading,
     error,
+    /** Set of txIds whose approval is in-flight. Use for optimistic UI. */
+    pendingApprovalIds,
     getBalance,
     getConfig,
     deposit,
