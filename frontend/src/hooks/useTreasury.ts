@@ -1,215 +1,349 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { nativeToScVal } from "@stellar/stellar-sdk";
 import {
-  buildDepositTx,
-  buildProposeWithdrawalTx,
   buildApproveTx,
+  buildDepositTx,
   buildExecuteTx,
+  buildProposeWithdrawalTx,
   CONTRACT_IDS,
   readContractValue,
   signAndSubmit,
 } from "@/lib/soroban";
+import {
+  decodeBigInt,
+  decodeTreasuryConfig,
+  decodeTreasuryTransaction,
+  type TreasuryConfig,
+  type TreasuryTransaction,
+} from "@/lib/contractData";
+import { classifyError, type AppError } from "@/lib/errors";
+import { createLatestRequestGuard, isAbortError } from "@/lib/requestGuard";
+import { isWalletNetworkMismatch } from "@/lib/network";
 import { useFreighter } from "./useFreighter";
-import { readPublicEnv } from "@/lib/env";
-
-export interface TreasuryConfig {
-  admin: string;
-  threshold: number;
-  signer_count: number;
-  balance: number;
-  tx_count: number;
-}
-
-export interface TreasuryTransaction {
-  id: number;
-  contract_id: string;
-  topic_1: string | null;
-  topic_2: string | null;
-  event_data: any;
-  ledger: number;
-  timestamp: number | null;
-  cursor: string | null;
-  created_at: string;
-}
 
 const REFRESH_INTERVAL = 30_000;
-const API_BASE = readPublicEnv("NEXT_PUBLIC_API_URL") || "http://localhost:3001/api";
+const MAX_VISIBLE_TRANSACTIONS = 20;
+
+type TxAction = "approve" | "execute";
 
 export function useTreasury() {
-  const { address } = useFreighter();
-  const [balance, setBalance] = useState<number>(0);
+  const { address, network } = useFreighter();
+  const [balance, setBalance] = useState<bigint>(0n);
   const [config, setConfig] = useState<TreasuryConfig | null>(null);
   const [transactions, setTransactions] = useState<TreasuryTransaction[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [txActions, setTxActions] = useState<ReadonlyMap<number, TxAction>>(
+    new Map(),
+  );
 
-  const getBalance = useCallback(async () => {
-    try {
+  const requestGuardRef = useRef(createLatestRequestGuard());
+
+  const isNetworkMismatch = useMemo(
+    () => isWalletNetworkMismatch(network),
+    [network],
+  );
+
+  const setTxAction = useCallback((txId: number, action: TxAction | null) => {
+    setTxActions((previous) => {
+      const next = new Map(previous);
+      if (action) {
+        next.set(txId, action);
+      } else {
+        next.delete(txId);
+      }
+      return next;
+    });
+  }, []);
+
+  const fetchBalance = useCallback(
+    async (requestId: number, signal: AbortSignal) => {
       const result = await readContractValue(
         CONTRACT_IDS.treasury,
         "get_balance",
-        []
+        [],
+        {
+          decoder: decodeBigInt,
+          signal,
+          sourceAddress: address ?? undefined,
+        },
       );
-      const val = Number(result);
-      setBalance(val);
-      return val;
-    } catch (err: any) {
-      console.warn("Failed to fetch balance, using placeholder", err);
-      // Fallback placeholder logic just so the UI doesn't crash if contract isn't deployed
-      setBalance(1000);
-      return 1000;
-    }
-  }, []);
 
-  const getConfig = useCallback(async () => {
-    try {
+      if (requestGuardRef.current.isCurrent(requestId)) {
+        setBalance(result);
+      }
+
+      return result;
+    },
+    [address],
+  );
+
+  const fetchConfig = useCallback(
+    async (requestId: number, signal: AbortSignal) => {
       const result = await readContractValue(
         CONTRACT_IDS.treasury,
         "get_config",
-        []
+        [],
+        {
+          decoder: decodeTreasuryConfig,
+          signal,
+          sourceAddress: address ?? undefined,
+        },
       );
-      setConfig(result);
-      return result;
-    } catch (err: any) {
-      console.warn("Failed to fetch config, using placeholder", err);
-      setConfig({
-        admin: "G...",
-        threshold: 2,
-        signer_count: 3,
-        balance: 1000,
-        tx_count: 10,
-      });
-      return null;
-    }
-  }, []);
 
-  const fetchTransactions = useCallback(async (page = 1, limit = 10) => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`${API_BASE}/treasury/transactions?page=${page}&limit=${limit}`);
-      if (!res.ok) throw new Error("Failed to fetch transactions");
-      const data = await res.json();
-      setTransactions(Array.isArray(data) ? data : []);
-      return data;
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch transactions");
-      // Fallback dummy data for UI testing (since backend might not be fully seeded)
-      setTransactions([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      if (requestGuardRef.current.isCurrent(requestId)) {
+        setConfig(result);
+        setBalance(result.balance);
+      }
+
+      return result;
+    },
+    [address],
+  );
+
+  const fetchTransaction = useCallback(
+    async (transactionId: number, signal: AbortSignal) => {
+      return readContractValue(
+        CONTRACT_IDS.treasury,
+        "get_transaction",
+        [nativeToScVal(transactionId, { type: "u64" })],
+        {
+          decoder: decodeTreasuryTransaction,
+          signal,
+          sourceAddress: address ?? undefined,
+        },
+      );
+    },
+    [address],
+  );
+
+  const fetchTransactions = useCallback(
+    async (requestId: number, signal: AbortSignal, txCount: number) => {
+      if (txCount <= 0) {
+        if (requestGuardRef.current.isCurrent(requestId)) {
+          setTransactions([]);
+        }
+        return [];
+      }
+
+      const firstId = Math.max(1, txCount - MAX_VISIBLE_TRANSACTIONS + 1);
+      const ids = Array.from(
+        { length: txCount - firstId + 1 },
+        (_, index) => txCount - index,
+      );
+
+      const results = await Promise.all(
+        ids.map((transactionId) => fetchTransaction(transactionId, signal)),
+      );
+
+      if (requestGuardRef.current.isCurrent(requestId)) {
+        setTransactions(results);
+      }
+
+      return results;
+    },
+    [fetchTransaction],
+  );
 
   const refresh = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await Promise.all([getBalance(), getConfig(), fetchTransactions()]);
-    } catch {
-      // Errors handled
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getBalance, getConfig, fetchTransactions]);
+    const request = requestGuardRef.current.begin();
 
-  const deposit = async (amount: number): Promise<void> => {
-    if (!address) throw new Error("Wallet not connected");
-    setError(null);
-    setIsLoading(true);
-    try {
-      const tx = await buildDepositTx(CONTRACT_IDS.treasury, address, amount);
-      const built = tx.build();
-      await signAndSubmit(built);
-      await getBalance();
-    } catch (err: any) {
-      setError(err.message || "Deposit failed");
-      throw err;
-    } finally {
-      setIsLoading(false);
+    if (requestGuardRef.current.isCurrent(request.id)) {
+      setIsLoading(true);
+      setError(null);
     }
-  };
 
-  const proposeWithdrawal = async (
-    to: string,
-    amount: number,
-    memo: string
-  ): Promise<void> => {
-    if (!address) throw new Error("Wallet not connected");
-    setError(null);
-    setIsLoading(true);
     try {
-      const tx = await buildProposeWithdrawalTx(
-        CONTRACT_IDS.treasury,
-        address,
-        to,
-        amount,
-        memo
+      const [currentBalance, currentConfig] = await Promise.all([
+        fetchBalance(request.id, request.signal),
+        fetchConfig(request.id, request.signal),
+      ]);
+
+      await fetchTransactions(request.id, request.signal, currentConfig.txCount);
+
+      if (requestGuardRef.current.isCurrent(request.id)) {
+        setBalance(currentConfig.balance ?? currentBalance);
+      }
+    } catch (err: unknown) {
+      if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
+        setError(classifyError(err));
+      }
+    } finally {
+      if (requestGuardRef.current.isCurrent(request.id)) {
+        setIsLoading(false);
+      }
+    }
+  }, [fetchBalance, fetchConfig, fetchTransactions]);
+
+  const assertWalletReady = useCallback(() => {
+    if (!address) {
+      throw new Error("Wallet not connected");
+    }
+
+    if (isNetworkMismatch) {
+      throw new Error("Wallet network mismatch");
+    }
+  }, [address, isNetworkMismatch]);
+
+  const deposit = useCallback(
+    async (amount: number): Promise<void> => {
+      assertWalletReady();
+      const walletAddress = address as string;
+      setError(null);
+
+      try {
+        const txBuilder = await buildDepositTx(
+          CONTRACT_IDS.treasury,
+          walletAddress,
+          amount,
+        );
+        await signAndSubmit(txBuilder.build());
+        await refresh();
+      } catch (err: unknown) {
+        const appError = classifyError(err);
+        setError(appError);
+        throw appError;
+      }
+    },
+    [address, assertWalletReady, refresh],
+  );
+
+  const proposeWithdrawal = useCallback(
+    async (to: string, amount: number, memo: string): Promise<void> => {
+      assertWalletReady();
+      const walletAddress = address as string;
+      setError(null);
+
+      try {
+        const txBuilder = await buildProposeWithdrawalTx(
+          CONTRACT_IDS.treasury,
+          walletAddress,
+          to,
+          amount,
+          memo,
+        );
+        await signAndSubmit(txBuilder.build());
+        await refresh();
+      } catch (err: unknown) {
+        const appError = classifyError(err);
+        setError(appError);
+        throw appError;
+      }
+    },
+    [address, assertWalletReady, refresh],
+  );
+
+  const approve = useCallback(
+    async (txId: number): Promise<void> => {
+      assertWalletReady();
+      const walletAddress = address as string;
+      setError(null);
+      setTxAction(txId, "approve");
+
+      const snapshot = transactions;
+      setTransactions((current) =>
+        current.map((transaction) => {
+          if (
+            transaction.id !== txId ||
+            transaction.approvals.includes(walletAddress)
+          ) {
+            return transaction;
+          }
+
+          return {
+            ...transaction,
+            approvals: [...transaction.approvals, walletAddress],
+          };
+        }),
       );
-      const built = tx.build();
-      await signAndSubmit(built);
-      await getConfig();
-    } catch (err: any) {
-      setError(err.message || "Propose withdrawal failed");
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const approve = async (txId: number): Promise<void> => {
-    if (!address) throw new Error("Wallet not connected");
-    setError(null);
-    setIsLoading(true);
-    try {
-      const tx = await buildApproveTx(CONTRACT_IDS.treasury, address, txId);
-      const built = tx.build();
-      await signAndSubmit(built);
-      await refresh();
-    } catch (err: any) {
-      setError(err.message || "Approve failed");
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      try {
+        const txBuilder = await buildApproveTx(
+          CONTRACT_IDS.treasury,
+          walletAddress,
+          txId,
+        );
+        await signAndSubmit(txBuilder.build());
+        await refresh();
+      } catch (err: unknown) {
+        setTransactions(snapshot);
+        const appError = classifyError(err);
+        setError(appError);
+        throw appError;
+      } finally {
+        setTxAction(txId, null);
+      }
+    },
+    [address, assertWalletReady, refresh, setTxAction, transactions],
+  );
 
-  const execute = async (txId: number): Promise<void> => {
-    if (!address) throw new Error("Wallet not connected");
+  const execute = useCallback(
+    async (txId: number): Promise<void> => {
+      assertWalletReady();
+      const walletAddress = address as string;
+      setError(null);
+      setTxAction(txId, "execute");
+
+      try {
+        const txBuilder = await buildExecuteTx(
+          CONTRACT_IDS.treasury,
+          walletAddress,
+          txId,
+        );
+        await signAndSubmit(txBuilder.build());
+        await refresh();
+      } catch (err: unknown) {
+        const appError = classifyError(err);
+        setError(appError);
+        throw appError;
+      } finally {
+        setTxAction(txId, null);
+      }
+    },
+    [address, assertWalletReady, refresh, setTxAction],
+  );
+
+  const clearError = useCallback(() => {
     setError(null);
-    setIsLoading(true);
-    try {
-      const tx = await buildExecuteTx(CONTRACT_IDS.treasury, address, txId);
-      const built = tx.build();
-      await signAndSubmit(built);
-      await refresh();
-    } catch (err: any) {
-      setError(err.message || "Execute failed");
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, []);
 
   useEffect(() => {
+    const requestGuard = requestGuardRef.current;
     refresh();
-    const interval = setInterval(refresh, REFRESH_INTERVAL);
-    return () => clearInterval(interval);
+
+    const interval = setInterval(() => {
+      refresh();
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(interval);
+      requestGuard.cancel("Treasury refresh cancelled.");
+    };
   }, [refresh]);
 
+  useEffect(() => {
+    const requestGuard = requestGuardRef.current;
+    return () => {
+      requestGuard.dispose();
+    };
+  }, []);
+
   return {
+    address,
     balance,
     config,
     transactions,
     isLoading,
     error,
-    getBalance,
-    getConfig,
-    fetchTransactions,
+    isNetworkMismatch,
+    pendingActions: txActions,
     deposit,
     proposeWithdrawal,
     approve,
     execute,
     refresh,
+    clearError,
   };
 }

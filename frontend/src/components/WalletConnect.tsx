@@ -3,6 +3,7 @@
 import React from "react";
 import { useFreighter } from "@/hooks/useFreighter";
 import { formatAddress } from "@/lib/formatters";
+import { CopyButton } from "@/components/CopyButton";
 
 export const WalletConnect = () => {
   const { address, isConnecting, connect, disconnect, isFreighterInstalled, error } = useFreighter();
@@ -34,6 +35,11 @@ export const WalletConnect = () => {
         <div className="text-sm font-mono bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 text-stellar-blue">
           {formatAddress(address)}
         </div>
+        <CopyButton
+          value={address}
+          label="wallet address"
+          className="text-[11px]"
+        />
         <button 
           onClick={disconnect}
           className="text-xs text-gray-500 hover:text-white transition-colors"
