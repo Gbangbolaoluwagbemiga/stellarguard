@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { VoteButton } from "@/components/VoteButton";
 
 export default function ProposalDetailPage({
   params,
@@ -6,7 +9,7 @@ export default function ProposalDetailPage({
   params: { id: string };
 }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-32 md:pb-0">
       {/* Back Link */}
       <Link
         href="/governance"
@@ -62,17 +65,12 @@ export default function ProposalDetailPage({
         </div>
       </div>
 
-      {/* Vote Actions */}
-      {/* TODO: [FE-16] Wire up vote casting with Soroban contract */}
-      <div className="card">
-        <h2 className="text-lg font-semibold text-white mb-4">Cast Vote</h2>
+      {/* Vote Actions (Sticky on Mobile) */}
+      <div className="fixed bottom-0 inset-x-0 p-4 bg-gray-900 border-t border-stellar-border z-50 md:relative md:p-0 md:bg-transparent md:border-t-0 md:z-auto card md:card">
+        <h2 className="hidden md:block text-lg font-semibold text-white mb-4">Cast Vote</h2>
         <div className="flex space-x-4">
-          <button className="btn-primary flex-1 py-3">
-            ✅ Vote For
-          </button>
-          <button className="btn-secondary flex-1 py-3 border-red-700 hover:bg-red-900/30">
-            ❌ Vote Against
-          </button>
+          <VoteButton proposalId={parseInt(params.id, 10)} voteFor={true} />
+          <VoteButton proposalId={parseInt(params.id, 10)} voteFor={false} />
         </div>
       </div>
     </div>

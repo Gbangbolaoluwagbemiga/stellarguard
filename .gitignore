@@ -30,3 +30,5 @@ coverage/
 # Soroban
 *.wasm
 *.d
+issue.md
+pr.md

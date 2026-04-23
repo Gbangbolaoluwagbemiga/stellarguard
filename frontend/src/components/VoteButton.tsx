@@ -1,20 +1,18 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useGovernance } from "@/hooks/useGovernance";
+import { toast } from "react-hot-toast";
+
 interface VoteButtonProps {
   /** Proposal ID */
   proposalId: number;
   /** Vote direction */
   voteFor: boolean;
-  /** Whether the user has already voted on chain */
-  hasVoted?: boolean;
   /** Whether voting is closed */
   votingClosed?: boolean;
-  /** Callback when vote is submitted */
-  onVote?: (proposalId: number, voteFor: boolean) => Promise<void>;
-  /**
-   * Whether a vote for this proposal is currently in-flight.
-   * When true the button shows a pending state immediately (optimistic UI),
-   * before the chain confirms the vote.
-   */
-  isPending?: boolean;
+  /** Callback after vote is submitted (optional) */
+  onVoteSuccess?: () => void;
 }
 
 /**
@@ -25,43 +23,62 @@ interface VoteButtonProps {
 export function VoteButton({
   proposalId,
   voteFor,
-  hasVoted = false,
   votingClosed = false,
-  onVote,
-  isPending = false,
+  onVoteSuccess,
 }: VoteButtonProps) {
-  const isDisabled = hasVoted || votingClosed || isPending;
+  const { vote, hasVoted: checkHasVoted, isLoading: isVoting } = useGovernance();
+  const [alreadyVoted, setAlreadyVoted] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    const updateVoteStatus = async () => {
+      try {
+        const voted = await checkHasVoted(proposalId);
+        setAlreadyVoted(voted);
+      } catch (err) {
+        console.error("Failed to check vote status:", err);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    updateVoteStatus();
+  }, [proposalId, checkHasVoted]);
+
+  const isDisabled = alreadyVoted || votingClosed || isVoting || isChecking;
 
   const label = voteFor ? "✅ Vote For" : "❌ Vote Against";
-  const pendingLabel = voteFor ? "Submitting for…" : "Submitting against…";
-  const disabledLabel = isPending
-    ? pendingLabel
-    : hasVoted
-      ? "Already Voted"
-      : votingClosed
-        ? "Voting Closed"
+  const disabledLabel = alreadyVoted
+    ? "Already Voted"
+    : votingClosed
+      ? "Voting Closed"
+      : isVoting
+        ? "Casting Vote..."
         : label;
 
   const baseClass = voteFor
-    ? "btn-primary"
-    : "btn-secondary border-red-700 hover:bg-red-900/30";
+    ? "bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow-lg"
+    : "bg-transparent border border-red-700 hover:bg-red-900/30 text-red-500 rounded-lg transition-all font-medium";
 
   const handleClick = async () => {
-    if (isDisabled || !onVote) return;
+    if (isDisabled) return;
+
+    const toastId = toast.loading(`Casting vote ${voteFor ? "FOR" : "AGAINST"}...`);
 
     try {
-      await onVote(proposalId, voteFor);
-    } catch {
-      // Error handling is managed by the hook (useGovernance).
-      // The optimistic rollback keeps the UI consistent on failure.
+      await vote(proposalId, voteFor);
+      setAlreadyVoted(true);
+      toast.success("Vote cast successfully!", { id: toastId });
+      if (onVoteSuccess) onVoteSuccess();
+    } catch (err: any) {
+      console.error("Vote failed:", err);
+      toast.error(err.message || "Failed to cast vote. Try again.", { id: toastId });
     }
   };
 
   return (
     <button
-      className={`${baseClass} flex-1 py-3 ${
-        isDisabled ? "opacity-50 cursor-not-allowed" : ""
-      } ${isPending ? "animate-pulse" : ""}`}
+      className={`${baseClass} flex-1 py-3 px-4 ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
       disabled={isDisabled}
       onClick={handleClick}
     >
