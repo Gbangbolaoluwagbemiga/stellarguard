@@ -1,182 +1,339 @@
 "use client";
 
-import { useTreasury, TreasuryTransaction } from "@/hooks/useTreasury";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTreasury } from "@/hooks/useTreasury";
 import { useFreighter } from "@/hooks/useFreighter";
+import { formatAbsoluteDate, formatAddress, formatXlm } from "@/lib/formatters";
+import { ERROR_CODE_LABELS } from "@/lib/errors";
+import { TreasuryCard } from "@/components/TreasuryCard";
+import { WalletConnect } from "@/components/WalletConnect";
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import { CopyButton } from "@/components/CopyButton";
+import type { TreasuryTransaction } from "@/lib/contractData";
 
 export default function TreasuryPage() {
   const { address } = useFreighter();
-  const { balance, config, transactions, isLoading } = useTreasury();
-  const [selectedTx, setSelectedTx] = useState<TreasuryTransaction | null>(null);
+  const {
+    balance,
+    config,
+    transactions,
+    isLoading,
+    error,
+    isNetworkMismatch,
+    pendingActions,
+    approve,
+    execute,
+    refresh,
+    clearError,
+  } = useTreasury();
 
-  // Simple heuristic for demo purposes: consider transactions 'Pending' if topic_1 implies propose or they lack an execution event
-  const pendingTxs = transactions.filter(t => t.topic_1 && t.topic_1.includes('propose'));
-  const historyTxs = transactions.filter(t => !t.topic_1?.includes('propose'));
+  const [selectedTx, setSelectedTx] = useState<TreasuryTransaction | null>(null);
+  const [confirmExecuteTxId, setConfirmExecuteTxId] = useState<number | null>(null);
+
+  const pendingTxs = useMemo(
+    () => transactions.filter((transaction) => !transaction.executed),
+    [transactions],
+  );
+
+  const historyTxs = useMemo(
+    () => transactions.filter((transaction) => transaction.executed),
+    [transactions],
+  );
+
+  const threshold = config?.threshold ?? 0;
+  const signerCount = config?.signerCount ?? 0;
+
+  const handleApprove = async (txId: number) => {
+    await approve(txId);
+  };
+
+  const handleExecute = (txId: number) => {
+    setConfirmExecuteTxId(txId);
+  };
+
+  const runExecute = async () => {
+    if (confirmExecuteTxId === null) {
+      return;
+    }
+
+    await execute(confirmExecuteTxId);
+    setConfirmExecuteTxId(null);
+  };
 
   return (
     <div className="space-y-8 relative">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">Treasury</h1>
           <p className="text-gray-400 mt-1">
-            Manage shared funds with multi-signature approvals
+            Live treasury status and approvals from Soroban contracts.
           </p>
         </div>
-        <button className="btn-primary">+ Deposit</button>
+        <div className="flex gap-2 items-center">
+          <button className="btn-secondary text-sm" onClick={() => refresh()}>
+            {isLoading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
-      {/* Balance Overview */}
+      {isNetworkMismatch && (
+        <div className="card border-red-500/40 bg-red-950/20">
+          <h2 className="text-sm font-semibold text-red-300">Network mismatch</h2>
+          <p className="text-sm text-red-200 mt-1">
+            Your wallet is on a different network than the configured contracts.
+            Switch networks in Freighter, then retry.
+          </p>
+        </div>
+      )}
+
+      {!address && (
+        <div className="card border-yellow-500/40 bg-yellow-950/20">
+          <h2 className="text-sm font-semibold text-yellow-300">Wallet disconnected</h2>
+          <p className="text-sm text-yellow-200 mt-1">
+            Connect your wallet to approve or execute treasury transactions.
+          </p>
+          <div className="mt-4 inline-flex">
+            <WalletConnect />
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="card border-red-500/40 bg-red-950/20">
+          <h2 className="text-sm font-semibold text-red-300">
+            {ERROR_CODE_LABELS[error.code]}
+          </h2>
+          <p className="text-sm text-red-200 mt-1">{error.message}</p>
+          <div className="mt-4 flex gap-2">
+            {error.recoverable && (
+              <button className="btn-primary text-sm" onClick={() => refresh()}>
+                Retry
+              </button>
+            )}
+            <button className="btn-secondary text-sm" onClick={clearError}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="card">
-        <div className="flex justify-between items-center">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div>
-            <p className="text-sm text-gray-400">Total Balance</p>
-            <p className="text-4xl font-bold text-white mt-1">
-              {isLoading && balance === 0 ? "..." : balance} XLM
+            <p className="text-sm text-gray-400">Treasury Balance</p>
+            <p className="text-3xl font-bold text-white mt-1">
+              {isLoading && balance === 0n ? "Loading..." : `${formatXlm(balance)} XLM`}
             </p>
           </div>
-          <div className="text-right">
+          <div>
             <p className="text-sm text-gray-400">Approval Threshold</p>
             <p className="text-2xl font-semibold text-primary-400 mt-1">
-              {config?.threshold || "—"} of {config?.signer_count || "—"}
+              {threshold > 0 ? `${threshold} of ${signerCount}` : "-"}
             </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400">Admin</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-sm text-gray-200 font-mono">
+                {config?.admin ? formatAddress(config.admin, { startChars: 6, endChars: 4 }) : "-"}
+              </p>
+              {config?.admin && (
+                <CopyButton value={config.admin} label="treasury admin address" />
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Pending Transactions */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4">
-          Pending Transactions
-        </h2>
-        <div className="card">
-          {!address ? (
-            <p className="text-gray-500 text-center py-8">
-              Connect your wallet to view pending transactions
-            </p>
-          ) : pendingTxs.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No pending transactions
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {pendingTxs.map(tx => (
-                <div key={tx.id} className="flex justify-between items-center p-4 bg-gray-900 rounded-lg border border-stellar-border cursor-pointer hover:bg-gray-800 transition" onClick={() => setSelectedTx(tx)}>
-                  <div>
-                    <p className="text-sm font-semibold text-white">Transaction #{tx.id}</p>
-                    <p className="text-xs text-gray-400 mt-1">{tx.topic_1 || "Unknown"}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="px-2 py-1 bg-yellow-900/50 text-yellow-400 border border-yellow-700 rounded text-xs">Pending</span>
-                  </div>
-                </div>
-              ))}
+        <h2 className="text-xl font-semibold text-white mb-4">Pending Transactions</h2>
+        <div className="space-y-4">
+          {pendingTxs.length === 0 ? (
+            <div className="card">
+              <p className="text-gray-500 text-center py-8">
+                {isLoading ? "Loading transactions..." : "No pending transactions."}
+              </p>
             </div>
+          ) : (
+            pendingTxs.map((transaction) => (
+              <div
+                key={transaction.id}
+                className="cursor-pointer"
+                onClick={() => setSelectedTx(transaction)}
+              >
+                <TreasuryCard
+                  txId={transaction.id}
+                  to={transaction.to}
+                  amount={transaction.amount}
+                  memo={transaction.memo}
+                  approvals={transaction.approvals}
+                  threshold={threshold || 1}
+                  executed={transaction.executed}
+                  isPendingApproval={pendingActions.get(transaction.id) === "approve"}
+                  isPendingExecution={pendingActions.get(transaction.id) === "execute"}
+                  onApprove={isNetworkMismatch || !address ? undefined : handleApprove}
+                  onExecute={isNetworkMismatch || !address ? undefined : handleExecute}
+                />
+              </div>
+            ))
           )}
         </div>
       </div>
 
-      {/* Transaction History */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4">History</h2>
-        <div className="card">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-stellar-border">
-                  <th className="text-left py-3 px-4">ID</th>
-                  <th className="text-left py-3 px-4">Event Topic</th>
-                  <th className="text-left py-3 px-4">Ledger</th>
-                  <th className="text-left py-3 px-4">Date</th>
+        <h2 className="text-xl font-semibold text-white mb-4">Execution History</h2>
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-400 border-b border-stellar-border">
+                <th className="text-left py-3 px-4">ID</th>
+                <th className="text-left py-3 px-4">Destination</th>
+                <th className="text-left py-3 px-4">Amount</th>
+                <th className="text-left py-3 px-4">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyTxs.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center text-gray-500 py-8">
+                    {isLoading ? "Loading execution history..." : "No executed transactions."}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {isLoading && historyTxs.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center text-gray-400 py-8">Loading history...</td>
+              ) : (
+                historyTxs.map((transaction) => (
+                  <tr
+                    key={transaction.id}
+                    className="border-b border-stellar-border/50 hover:bg-gray-800/50 cursor-pointer transition"
+                    onClick={() => setSelectedTx(transaction)}
+                  >
+                    <td className="py-3 px-4 text-white">
+                      <div className="flex items-center gap-2">
+                        <span>#{transaction.id}</span>
+                        <CopyButton
+                          value={String(transaction.id)}
+                          label={`transaction ${transaction.id} id`}
+                        />
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-gray-300 font-mono">
+                      {formatAddress(transaction.to, { startChars: 6, endChars: 4 })}
+                    </td>
+                    <td className="py-3 px-4 text-gray-300">{formatXlm(transaction.amount)} XLM</td>
+                    <td className="py-3 px-4 text-gray-400">{formatAbsoluteDate(transaction.createdAt * 1000)}</td>
                   </tr>
-                ) : historyTxs.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center text-gray-500 py-8">No transactions yet</td>
-                  </tr>
-                ) : (
-                  historyTxs.map((tx) => (
-                    <tr key={tx.id} className="border-b border-stellar-border/50 hover:bg-gray-800/50 cursor-pointer transition" onClick={() => setSelectedTx(tx)}>
-                      <td className="py-3 px-4 text-white">#{tx.id}</td>
-                      <td className="py-3 px-4 text-gray-300">{tx.topic_1 || "Contract Event"}</td>
-                      <td className="py-3 px-4 text-gray-400">{tx.ledger}</td>
-                      <td className="py-3 px-4 text-gray-400">{new Date(tx.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Transaction Overlay Drawer */}
       {selectedTx && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-40 transition-opacity" onClick={() => setSelectedTx(null)} />
+          <div
+            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            onClick={() => setSelectedTx(null)}
+          />
           <div className="fixed right-0 top-0 h-full w-full max-w-md bg-background border-l border-stellar-border z-50 p-6 shadow-2xl overflow-y-auto transform transition-transform">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">Transaction Details</h2>
-              <button onClick={() => setSelectedTx(null)} className="text-gray-400 hover:text-white">
-                ✕
+              <button
+                onClick={() => setSelectedTx(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                X
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <p className="text-xs text-gray-500 uppercase">ID</p>
-                <p className="text-sm text-gray-200 mt-1">#{selectedTx.id}</p>
-              </div>
-              
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Contract</p>
-                <p className="text-sm text-gray-200 mt-1 font-mono break-all">{selectedTx.contract_id}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Topic 1</p>
-                <p className="text-sm text-gray-200 mt-1">{selectedTx.topic_1 || "—"}</p>
-              </div>
-
-               <div>
-                <p className="text-xs text-gray-500 uppercase">Topic 2</p>
-                <p className="text-sm text-gray-200 mt-1 font-mono break-all">{selectedTx.topic_2 || "—"}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="text-sm text-gray-200">#{selectedTx.id}</p>
+                  <CopyButton
+                    value={String(selectedTx.id)}
+                    label={`transaction ${selectedTx.id} id`}
+                  />
+                </div>
               </div>
 
               <div>
-                <p className="text-xs text-gray-500 uppercase">Event Data</p>
-                <pre className="bg-gray-900 p-3 rounded text-xs text-green-400 mt-1 overflow-x-auto">
-                  {JSON.stringify(selectedTx.event_data, null, 2)}
-                </pre>
+                <p className="text-xs text-gray-500 uppercase">Destination</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="text-sm text-gray-200 font-mono break-all">{selectedTx.to}</p>
+                  <CopyButton
+                    value={selectedTx.to}
+                    label={`transaction ${selectedTx.id} destination address`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Amount</p>
+                <p className="text-sm text-gray-200 mt-1">{formatXlm(selectedTx.amount)} XLM</p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Memo</p>
+                <p className="text-sm text-gray-200 mt-1">{selectedTx.memo || "-"}</p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Approvals</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedTx.approvals.length === 0 ? (
+                    <span className="text-xs text-gray-500">No approvals yet</span>
+                  ) : (
+                    selectedTx.approvals.map((approver) => (
+                      <span
+                        key={`${selectedTx.id}-${approver}`}
+                        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-gray-300"
+                      >
+                        {formatAddress(approver, { startChars: 4, endChars: 4 })}
+                      </span>
+                    ))
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500 uppercase">Ledger</p>
-                  <p className="text-sm text-gray-200 mt-1">{selectedTx.ledger}</p>
+                  <p className="text-xs text-gray-500 uppercase">Status</p>
+                  <p className="text-sm text-gray-200 mt-1">
+                    {selectedTx.executed ? "Executed" : "Pending"}
+                  </p>
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500 uppercase">Time</p>
-                  <p className="text-sm text-gray-200 mt-1">{new Date(selectedTx.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 uppercase">Created</p>
+                  <p className="text-sm text-gray-200 mt-1">
+                    {formatAbsoluteDate(selectedTx.createdAt * 1000)}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-stellar-border">
-              <button 
-                className="w-full btn-secondary py-3"
-                onClick={() => setSelectedTx(null)}
-              >
-                Close Drawer
+              <button className="w-full btn-secondary py-3" onClick={() => setSelectedTx(null)}>
+                Close
               </button>
             </div>
           </div>
         </>
       )}
+
+      <ConfirmationDialog
+        isOpen={confirmExecuteTxId !== null}
+        title="Confirm Execution"
+        description="This action executes the treasury transaction on-chain and cannot be undone."
+        confirmLabel="Execute Transaction"
+        cancelLabel="Cancel"
+        isConfirming={
+          confirmExecuteTxId !== null &&
+          pendingActions.get(confirmExecuteTxId) === "execute"
+        }
+        onConfirm={runExecute}
+        onCancel={() => setConfirmExecuteTxId(null)}
+      />
     </div>
   );
 }

@@ -47,6 +47,9 @@ export const HORIZON_URL = ACTIVE_NETWORK.horizonUrl;
 
 /** Network passphrase for the active network. */
 export const NETWORK_PASSPHRASE = ACTIVE_NETWORK.networkPassphrase;
+export const ACTIVE_NETWORK_KEY = Object.entries(NETWORKS).find(
+  ([, network]) => network.networkPassphrase === NETWORK_PASSPHRASE,
+)?.[0] as keyof typeof NETWORKS | undefined;
 
 // ============================================================================
 // Helpers
@@ -75,4 +78,47 @@ export async function fundAccount(address: string): Promise<boolean> {
     console.error("Failed to fund account:", err);
     return false;
   }
+}
+
+function normalizeWalletNetwork(
+  value: string,
+): "testnet" | "futurenet" | "mainnet" | null {
+  const normalized = value.trim().toLowerCase();
+
+  if (
+    normalized.includes("testnet") ||
+    normalized.includes("test sdf network ; september 2015")
+  ) {
+    return "testnet";
+  }
+
+  if (
+    normalized.includes("futurenet") ||
+    normalized.includes("future network ; october 2022")
+  ) {
+    return "futurenet";
+  }
+
+  if (
+    normalized.includes("mainnet") ||
+    normalized.includes("public") ||
+    normalized.includes("public global stellar network ; september 2015")
+  ) {
+    return "mainnet";
+  }
+
+  return null;
+}
+
+export function isWalletNetworkMismatch(walletNetwork: string | null): boolean {
+  if (!walletNetwork || !ACTIVE_NETWORK_KEY) {
+    return false;
+  }
+
+  const walletNetworkKey = normalizeWalletNetwork(walletNetwork);
+  if (!walletNetworkKey) {
+    return false;
+  }
+
+  return walletNetworkKey !== ACTIVE_NETWORK_KEY;
 }
