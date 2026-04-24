@@ -7,6 +7,24 @@ export type GovernanceProposalAction =
   | "RemoveMember"
   | "General";
 
+/** Human-readable label for each proposal action enum value. */
+export const ACTION_LABELS: Record<GovernanceProposalAction, string> = {
+  Funding: "Funding",
+  PolicyChange: "Policy Change",
+  AddMember: "Add Member",
+  RemoveMember: "Remove Member",
+  General: "General",
+};
+
+/** One-line description for each proposal action shown in tooltips and detail views. */
+export const ACTION_DESCRIPTIONS: Record<GovernanceProposalAction, string> = {
+  Funding: "Allocate treasury funds to a destination address",
+  PolicyChange: "Update a governance or contract policy parameter",
+  AddMember: "Grant voting membership to a new address",
+  RemoveMember: "Revoke voting membership from an existing address",
+  General: "General-purpose proposal with no specific on-chain action",
+};
+
 export type GovernanceProposalStatus =
   | "Active"
   | "Passed"

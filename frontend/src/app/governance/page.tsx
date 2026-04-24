@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { ProposalCard } from "@/components/ProposalCard";
@@ -27,11 +27,39 @@ const ACTION_FILTERS: Array<"All" | GovernanceProposalAction> = [
   "General",
 ];
 
+type SortKey = "newest" | "ending-soon" | "most-votes";
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "newest", label: "Newest" },
+  { value: "ending-soon", label: "Ending Soon" },
+  { value: "most-votes", label: "Most Votes" },
+];
+
+function sortProposals(proposals: GovernanceProposal[], sort: SortKey): GovernanceProposal[] {
+  const copy = [...proposals];
+  switch (sort) {
+    case "newest":
+      return copy.sort((a, b) => b.createdAt - a.createdAt);
+    case "ending-soon":
+      return copy.sort((a, b) => {
+        const now = Math.floor(Date.now() / 1000);
+        const aEnds = a.endsAt > now ? a.endsAt : Number.MAX_SAFE_INTEGER;
+        const bEnds = b.endsAt > now ? b.endsAt : Number.MAX_SAFE_INTEGER;
+        return aEnds - bEnds;
+      });
+    case "most-votes":
+      return copy.sort((a, b) => b.totalVotes - a.totalVotes);
+    default:
+      return copy;
+  }
+}
+
 export default function GovernancePage() {
   const { config, getConfig, getProposal, isLoading, error } = useGovernance();
   const [proposals, setProposals] = useState<GovernanceProposal[]>([]);
   const [statusFilter, setStatusFilter] = useState<"All" | GovernanceProposalStatus>("All");
   const [actionFilter, setActionFilter] = useState<"All" | GovernanceProposalAction>("All");
+  const [sortKey, setSortKey] = useState<SortKey>("newest");
 
   useEffect(() => {
     const load = async () => {
@@ -54,9 +82,7 @@ export default function GovernancePage() {
           }
         }
 
-        setProposals(
-          loaded.sort((a, b) => b.id - a.id),
-        );
+        setProposals(loaded);
       } catch {
         setProposals([]);
       }
@@ -66,12 +92,13 @@ export default function GovernancePage() {
   }, [getConfig, getProposal]);
 
   const filteredProposals = useMemo(() => {
-    return proposals.filter((proposal) => {
-      const statusOk = statusFilter === "All" || proposal.status === statusFilter;
-      const actionOk = actionFilter === "All" || proposal.action === actionFilter;
+    const filtered = proposals.filter((p) => {
+      const statusOk = statusFilter === "All" || p.status === statusFilter;
+      const actionOk = actionFilter === "All" || p.action === actionFilter;
       return statusOk && actionOk;
     });
-  }, [proposals, statusFilter, actionFilter]);
+    return sortProposals(filtered, sortKey);
+  }, [proposals, statusFilter, actionFilter, sortKey]);
 
   const activeProposals = filteredProposals.filter((p) => p.status === "Active");
   const pastProposals = filteredProposals.filter((p) => p.status !== "Active");
@@ -85,11 +112,9 @@ export default function GovernancePage() {
             Create and vote on proposals for your organization
           </p>
         </div>
-        {/* TODO: [FE-14] Add Create Proposal Modal trigger */}
         <button className="btn-primary">+ New Proposal</button>
       </div>
 
-      {/* Governance Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="card text-center">
           <p className="text-sm text-gray-400">Total Proposals</p>
@@ -113,39 +138,44 @@ export default function GovernancePage() {
         <div>
           <label className="block text-xs text-gray-400 mb-1">Status</label>
           <select
-            className="bg-gray-900 border border-stellar-border rounded px-3 py-2"
+            className="bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           >
-            {STATUS_FILTERS.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
+            {STATUS_FILTERS.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </div>
         <div>
           <label className="block text-xs text-gray-400 mb-1">Action</label>
           <select
-            className="bg-gray-900 border border-stellar-border rounded px-3 py-2"
+            className="bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white"
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value as typeof actionFilter)}
           >
-            {ACTION_FILTERS.map((action) => (
-              <option key={action} value={action}>
-                {action}
-              </option>
+            {ACTION_FILTERS.map((a) => (
+              <option key={a} value={a}>{a}</option>
             ))}
           </select>
         </div>
-        {error ? <p className="text-red-400 text-sm">{error.message}</p> : null}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Sort By</label>
+          <select
+            className="bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+          >
+            {SORT_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+        {error ? <p className="text-red-400 text-sm">{typeof error === "string" ? error : (error as Error).message}</p> : null}
       </div>
 
-      {/* Proposal List */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4">
-          Active Proposals
-        </h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Active Proposals</h2>
         <div className="space-y-4">
           {isLoading ? (
             <div className="card">
@@ -163,11 +193,8 @@ export default function GovernancePage() {
         </div>
       </div>
 
-      {/* Past Proposals */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4">
-          Past Proposals
-        </h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Past Proposals</h2>
         <div className="space-y-4">
           {pastProposals.length === 0 ? (
             <div className="card">
