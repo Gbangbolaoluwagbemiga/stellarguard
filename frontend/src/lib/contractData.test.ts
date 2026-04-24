@@ -114,3 +114,110 @@ describe("contract decoders", () => {
     expect(decodeBigInt("42")).toBe(BigInt(42));
   });
 });
+
+describe("treasury integration tests with mocked Soroban responses", () => {
+  it("decodes a full treasury config from a realistic RPC-shaped response", () => {
+    const mockRpcResponse = {
+      admin: "GADMIN7XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      threshold: "2",
+      signer_count: BigInt(3),
+      balance: "50000000000",
+      tx_count: 7,
+    };
+
+    expect(decodeTreasuryConfig(mockRpcResponse)).toEqual({
+      admin: "GADMIN7XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      threshold: 2,
+      signerCount: 3,
+      balance: BigInt(50000000000),
+      txCount: 7,
+    });
+  });
+
+  it("decodes a pending treasury transaction with no approvals", () => {
+    const mockRpcResponse = {
+      id: "1",
+      to: "GDEST1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      amount: BigInt(10000000),
+      memo: "Q1 operating budget",
+      approvals: [],
+      executed: false,
+      created_at: 1700000000,
+      proposer: "GPROP1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    };
+
+    expect(decodeTreasuryTransaction(mockRpcResponse)).toEqual({
+      id: 1,
+      to: "GDEST1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      amount: BigInt(10000000),
+      memo: "Q1 operating budget",
+      approvals: [],
+      executed: false,
+      createdAt: 1700000000,
+      proposer: "GPROP1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    });
+  });
+
+  it("decodes an executed transaction with multiple approvers", () => {
+    const mockRpcResponse = {
+      id: BigInt(5),
+      to: "GDEST2XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      amount: "25000000",
+      memo: "emergency fund",
+      approvals: [
+        "GSIGNER1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "GSIGNER2XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "GSIGNER3XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      ],
+      executed: true,
+      created_at: "1699000000",
+      proposer: "GPROP2XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    };
+
+    const decoded = decodeTreasuryTransaction(mockRpcResponse);
+
+    expect(decoded.executed).toBe(true);
+    expect(decoded.approvals).toHaveLength(3);
+    expect(decoded.amount).toBe(BigInt(25000000));
+    expect(decoded.id).toBe(5);
+  });
+
+  it("rejects treasury config missing the threshold field", () => {
+    expect(() =>
+      decodeTreasuryConfig({
+        admin: "GADMIN",
+        signer_count: 2,
+        balance: "1000",
+        tx_count: 0,
+      }),
+    ).toThrow(/missing "threshold"/i);
+  });
+
+  it("rejects treasury transaction with non-boolean executed field", () => {
+    expect(() =>
+      decodeTreasuryTransaction({
+        id: 1,
+        to: "GDEST",
+        amount: 0,
+        memo: "",
+        approvals: [],
+        executed: "yes",
+        created_at: 0,
+        proposer: "GPROP",
+      }),
+    ).toThrow(/boolean/i);
+  });
+
+  it("decodes treasury config with zero balance and tx count", () => {
+    const empty = decodeTreasuryConfig({
+      admin: "GADMIN",
+      threshold: 1,
+      signer_count: 1,
+      balance: "0",
+      tx_count: 0,
+    });
+
+    expect(empty.balance).toBe(BigInt(0));
+    expect(empty.txCount).toBe(0);
+  });
+});
