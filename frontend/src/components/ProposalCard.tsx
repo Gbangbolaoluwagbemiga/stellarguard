@@ -1,8 +1,6 @@
-// TODO: [FE-13] Implement ProposalCard with real data
-// TODO: [FE-17] Implement status badge colors
-
 import Link from "next/link";
 import { formatAddress } from "@/lib/formatters";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface ProposalCardProps {
   /** Proposal ID */
@@ -37,14 +35,6 @@ export function ProposalCard({
   totalMembers = 1,
   proposer = "G...",
 }: ProposalCardProps) {
-  const statusColors: Record<string, string> = {
-    Active: "bg-green-900/50 text-green-400 border-green-700",
-    Passed: "bg-blue-900/50 text-blue-400 border-blue-700",
-    Rejected: "bg-red-900/50 text-red-400 border-red-700",
-    Executed: "bg-purple-900/50 text-purple-400 border-purple-700",
-    Expired: "bg-gray-900/50 text-gray-400 border-gray-700",
-  };
-
   const totalVotes = votesFor + votesAgainst;
   const forPercent = totalVotes > 0 ? (votesFor / totalVotes) * 100 : 0;
 
@@ -55,11 +45,7 @@ export function ProposalCard({
           <div className="flex-1">
             <div className="flex items-center space-x-3 mb-2">
               <span className="text-sm font-mono text-gray-500">#{id}</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusColors[status]}`}
-              >
-                {status}
-              </span>
+              <StatusBadge status={status} />
             </div>
             <h3 className="text-lg font-semibold text-white">{title}</h3>
             {description && (

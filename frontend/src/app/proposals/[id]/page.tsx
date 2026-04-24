@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { VoteButton } from "@/components/VoteButton";
+import { StatusBadge } from "@/components/StatusBadge";
 
 export default function ProposalDetailPage({
   params,
@@ -27,10 +28,7 @@ export default function ProposalDetailPage({
               <h1 className="text-2xl font-bold text-white">
                 Proposal #{params.id}
               </h1>
-              {/* TODO: [FE-17] Implement status badge */}
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-900/50 text-green-400 border border-green-700">
-                Active
-              </span>
+              <StatusBadge status="Active" size="md" />
             </div>
             <p className="text-gray-400 mt-2">Loading proposal details...</p>
           </div>

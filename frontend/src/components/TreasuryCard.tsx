@@ -28,6 +28,10 @@ interface TreasuryCardProps {
   onApprove?: (txId: number) => void;
   /** Called when the user clicks Execute. Receives the txId. */
   onExecute?: (txId: number) => void;
+  /** Connected address for signer eligibility checks. */
+  currentAddress?: string | null;
+  /** Whether the wallet can sign on this network/context. */
+  canSign?: boolean;
 }
 
 /**
@@ -47,6 +51,8 @@ export function TreasuryCard({
   isPendingExecution = false,
   onApprove,
   onExecute,
+  currentAddress,
+  canSign = true,
 }: TreasuryCardProps) {
   const approvalCount = approvals.length;
   const statusColor = executed
@@ -61,7 +67,19 @@ export function TreasuryCard({
       ? "Ready"
       : "Pending";
 
-  const canApprove = !executed && !isPendingApproval && !!onApprove;
+  const hasApproved =
+    !!currentAddress &&
+    approvals.some(
+      (approver) =>
+        approver.toLowerCase() === currentAddress.toLowerCase(),
+    );
+  const canApprove =
+    !executed &&
+    !hasApproved &&
+    approvalCount < threshold &&
+    !isPendingApproval &&
+    canSign &&
+    !!onApprove;
   const canExecute =
     !executed &&
     !isPendingExecution &&
@@ -135,12 +153,16 @@ export function TreasuryCard({
         <div className="flex flex-wrap gap-2 justify-end">
           <button
             className={`btn-primary text-xs py-1 px-3 ${
-              isPendingApproval ? "opacity-50 cursor-not-allowed" : ""
+              !canApprove ? "opacity-50 cursor-not-allowed" : ""
             }`}
-            disabled={isPendingApproval || !onApprove}
+            disabled={!canApprove}
             onClick={handleApprove}
           >
-            {isPendingApproval ? "Approving..." : "Approve"}
+            {isPendingApproval
+              ? "Approving..."
+              : hasApproved
+                ? "Approved"
+                : "Approve"}
           </button>
           <button
             className={`btn-secondary text-xs py-1 px-3 ${
@@ -162,6 +184,16 @@ export function TreasuryCard({
         <p className="text-xs text-gray-500 text-right">
           Needs {threshold - approvalCount} more approval
           {threshold - approvalCount === 1 ? "" : "s"}.
+        </p>
+      )}
+      {hasApproved && !executed && (
+        <p className="text-xs text-primary-300 text-right">
+          You already approved this transaction.
+        </p>
+      )}
+      {!canSign && !executed && (
+        <p className="text-xs text-yellow-300 text-right">
+          Connect a wallet on the correct network to approve.
         </p>
       )}
       {approvalCount >= threshold && !executed && (

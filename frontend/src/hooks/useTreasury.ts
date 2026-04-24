@@ -242,6 +242,28 @@ export function useTreasury() {
       setError(null);
       setTxAction(txId, "approve");
 
+      const tx = transactions.find((transaction) => transaction.id === txId);
+      if (!tx) {
+        setTxAction(txId, null);
+        throw new Error("Transaction not found");
+      }
+      if (tx.executed) {
+        setTxAction(txId, null);
+        throw new Error("Cannot approve an executed transaction");
+      }
+      if (
+        tx.approvals.some(
+          (approver) => approver.toLowerCase() === walletAddress.toLowerCase(),
+        )
+      ) {
+        setTxAction(txId, null);
+        throw new Error("You already approved this transaction");
+      }
+      if (tx.approvals.length >= (config?.threshold ?? Number.MAX_SAFE_INTEGER)) {
+        setTxAction(txId, null);
+        throw new Error("Approval threshold already met");
+      }
+
       const snapshot = transactions;
       setTransactions((current) =>
         current.map((transaction) => {
@@ -276,7 +298,7 @@ export function useTreasury() {
         setTxAction(txId, null);
       }
     },
-    [address, assertWalletReady, refresh, setTxAction, transactions],
+    [address, assertWalletReady, config?.threshold, refresh, setTxAction, transactions],
   );
 
   const execute = useCallback(
