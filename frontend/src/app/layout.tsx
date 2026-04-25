@@ -4,6 +4,7 @@ import "./globals.css";
 import { FreighterProvider } from "@/context/FreighterProvider";
 import { WalletConnect } from "@/components/WalletConnect";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
+import { ToastContainer } from "@/components/Toast";
 
 
 export const metadata: Metadata = {
@@ -91,6 +92,7 @@ export default function RootLayout({
             </div>
           </footer>
           <DiagnosticsPanel />
+          <ToastContainer />
         </FreighterProvider>
       </body>
     </html>

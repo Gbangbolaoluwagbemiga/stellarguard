@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { cn } from './Shimmer';
 import { X } from 'lucide-react';
+import { FormErrorSummary } from './FormErrorSummary';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export function DepositModal({ isOpen, onClose, onDeposit, balance }: DepositMod
               </div>
             </div>
             
-            {error && <p className="text-sm text-rose-500 mt-1">{error}</p>}
+            <FormErrorSummary errors={error ? [{ message: error }] : undefined} />
           </div>
 
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg space-y-2 text-sm">
