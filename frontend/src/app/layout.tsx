@@ -1,11 +1,25 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 import { FreighterProvider } from "@/context/FreighterProvider";
 import { WalletConnect } from "@/components/WalletConnect";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { ToastContainer } from "@/components/Toast";
 
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans",
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   title: "StellarGuard — Decentralized Treasury Management",
@@ -43,21 +57,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="min-h-screen bg-stellar-darker text-gray-100 selection:bg-stellar-blue/30">
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetBrainsMono.variable} dark`}
+    >
+      <body className="min-h-screen bg-stellar-darker font-sans text-gray-100 selection:bg-stellar-blue/30">
         <FreighterProvider>
           <nav className="border-b border-white/5 bg-stellar-darker/60 backdrop-blur-xl sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between h-20 items-center">
                 <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
-                  <div className="w-10 h-10 bg-stellar-gradient rounded-xl flex items-center justify-center shadow-stellar group-hover:scale-110 transition-transform duration-300">
-                    <span className="text-xl">🛡️</span>
+                  <div className="w-10 h-10 rounded-xl overflow-hidden shadow-stellar group-hover:scale-110 transition-transform duration-300">
+                    <Image
+                      src="/stellarguard-mark.svg"
+                      alt="StellarGuard"
+                      width={40}
+                      height={40}
+                      priority
+                    />
                   </div>
                   <span className="text-2xl font-bold gradient-text tracking-tight">
                     StellarGuard
@@ -91,6 +108,7 @@ export default function RootLayout({
               </div>
             </div>
           </footer>
+          <Toaster position="bottom-right" />
           <DiagnosticsPanel />
           <ToastContainer />
         </FreighterProvider>

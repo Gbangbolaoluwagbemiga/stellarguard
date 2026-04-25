@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import type { GovernanceProposalAction } from "@/lib/contractData";
 import { ACTION_DESCRIPTIONS } from "@/lib/contractData";
+import { isValidStellarAddress } from "@/lib/stellarAddress";
 
 interface CreateProposalModalProps {
   isOpen: boolean;
@@ -38,6 +39,8 @@ export function CreateProposalModal({
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const normalizedTarget = target.trim();
+  const isTargetAddressValid = isValidStellarAddress(normalizedTarget);
 
   useEffect(() => {
     if (!isOpen) {
@@ -74,7 +77,7 @@ export function CreateProposalModal({
         return;
       }
 
-      if (!target.startsWith("G") || target.length !== 56) {
+      if (!isTargetAddressValid) {
         setError("Invalid Stellar address");
         return;
       }
@@ -95,7 +98,7 @@ export function CreateProposalModal({
         title: title.trim(),
         description: description.trim(),
         action,
-        target: target.trim(),
+        target: normalizedTarget,
         amount: amountBigInt,
       });
 
@@ -201,14 +204,14 @@ export function CreateProposalModal({
               <input
                 id="target"
                 type="text"
-                placeholder="G..."
+                placeholder="G... or C..."
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
                 disabled={isCreating}
                 className="w-full bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50"
               />
-              {target && (!target.startsWith("G") || target.length !== 56) && (
-                <p className="text-xs text-red-400 mt-1">Invalid Stellar address format</p>
+              {target && !isTargetAddressValid && (
+                <p className="text-xs text-red-400 mt-1">Enter a valid Stellar account or contract address</p>
               )}
             </div>
           )}

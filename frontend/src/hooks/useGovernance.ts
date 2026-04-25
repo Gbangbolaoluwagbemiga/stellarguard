@@ -97,6 +97,18 @@ export function useGovernance() {
     }
   }, [fetchConfig]);
 
+  const clearPendingVote = useCallback((proposalId: number) => {
+    setPendingVotes((prev: ReadonlyMap<number, boolean>) => {
+      if (!prev.has(proposalId)) {
+        return prev;
+      }
+
+      const next = new Map(Array.from(prev));
+      next.delete(proposalId);
+      return next;
+    });
+  }, []);
+
   const getProposal = useCallback(
     async (id: number): Promise<GovernanceProposal> => {
       const request = requestGuardRef.current.begin();
@@ -194,11 +206,7 @@ export function useGovernance() {
       await signAndSubmit(built);
     } catch (err: unknown) {
       // Rollback: remove the optimistic entry so the UI reverts to real data.
-      setPendingVotes((prev: ReadonlyMap<number, boolean>) => {
-        const next = new Map(Array.from(prev));
-        next.delete(proposalId);
-        return next;
-      });
+      clearPendingVote(proposalId);
 
       if (!isAbortError(err) && requestGuardRef.current.isCurrent(request.id)) {
         setError(classifyError(err));
@@ -206,14 +214,6 @@ export function useGovernance() {
 
       throw err;
     } finally {
-      // Always clear the pending entry — on success the refreshed chain data
-      // will carry the confirmed vote count.
-      setPendingVotes((prev: ReadonlyMap<number, boolean>) => {
-        const next = new Map(Array.from(prev));
-        next.delete(proposalId);
-        return next;
-      });
-
       if (requestGuardRef.current.isCurrent(request.id)) {
         setIsLoading(false);
       }
@@ -364,6 +364,7 @@ export function useGovernance() {
      * before the chain confirms.
      */
     pendingVotes,
+    clearPendingVote,
     getConfig,
     getProposal,
     createProposal,

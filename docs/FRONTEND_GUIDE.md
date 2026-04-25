@@ -104,6 +104,11 @@ npm run dev
 # Open http://localhost:3000
 ```
 
+### Frontend Reliability Notes
+- Use `src/lib/stellarAddress.ts` for all client-side Stellar address checks instead of duplicating prefix/length logic in components.
+- Layout fonts are loaded through `next/font/google` with `display: "swap"` to avoid the blocking Google Fonts stylesheet path.
+- Brand imagery in the app shell should go through `next/image` so width, height, and modern image formats are declared at the layout boundary.
+
 ### Environment Variables
 Create a `.env.local` file:
 ```env

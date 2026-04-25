@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { VoteButton } from "@/components/VoteButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useFreighter } from "@/hooks/useFreighter";
+import { useGovernance } from "@/hooks/useGovernance";
 import { formatAddress } from "@/lib/formatters";
 import type { GovernanceProposal } from "@/lib/contractData";
 
@@ -16,8 +17,18 @@ export default function ProposalDetailPage({
 }) {
   const id = Number.parseInt(params.id, 10);
   const { address: currentAddress } = useFreighter();
-  const { getProposal, finalize, getConfig, executeProposal, isLoading } = useGovernance();
+  const {
+    getProposal,
+    finalize,
+    getConfig,
+    executeProposal,
+    hasVoted,
+    pendingVotes,
+    clearPendingVote,
+    isLoading,
+  } = useGovernance();
   const [proposal, setProposal] = useState<GovernanceProposal | null>(null);
+  const [viewerHasVoted, setViewerHasVoted] = useState(false);
   const [countdown, setCountdown] = useState("Unknown");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -26,9 +37,14 @@ export default function ProposalDetailPage({
   const loadProposal = useCallback(async () => {
     if (!Number.isFinite(id)) return;
     await getConfig();
-    const p = await getProposal(id);
+    const [p, voted] = await Promise.all([
+      getProposal(id),
+      currentAddress ? hasVoted(id).catch(() => false) : Promise.resolve(false),
+    ]);
     setProposal(p);
-  }, [getConfig, getProposal, id]);
+    setViewerHasVoted(voted);
+    clearPendingVote(id);
+  }, [clearPendingVote, currentAddress, getConfig, getProposal, hasVoted, id]);
 
   useEffect(() => {
     loadProposal().catch(() => {
@@ -58,9 +74,18 @@ export default function ProposalDetailPage({
     setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s remaining`);
   }, [proposal, nowMs]);
 
-  const totalVotes = (proposal?.votesFor ?? 0) + (proposal?.votesAgainst ?? 0);
-  const forPercent = totalVotes > 0 ? ((proposal?.votesFor ?? 0) / totalVotes) * 100 : 0;
-  const againstPercent = totalVotes > 0 ? ((proposal?.votesAgainst ?? 0) / totalVotes) * 100 : 0;
+  const pendingVote = pendingVotes.get(id);
+  const displayedVotesFor =
+    (proposal?.votesFor ?? 0) + (pendingVote === true ? 1 : 0);
+  const displayedVotesAgainst =
+    (proposal?.votesAgainst ?? 0) + (pendingVote === false ? 1 : 0);
+  const totalVotes = displayedVotesFor + displayedVotesAgainst;
+  const forPercent = totalVotes > 0 ? (displayedVotesFor / totalVotes) * 100 : 0;
+  const againstPercent =
+    totalVotes > 0 ? (displayedVotesAgainst / totalVotes) * 100 : 0;
+  const votingClosed =
+    proposal ? proposal.status !== "Active" || proposal.endsAt * 1000 <= nowMs : true;
+  const effectiveHasVoted = viewerHasVoted || pendingVote !== undefined;
   const canFinalize = useMemo(() => {
     if (!proposal) return false;
     return proposal.status === "Active" && proposal.endsAt * 1000 <= nowMs;
@@ -102,6 +127,16 @@ export default function ProposalDetailPage({
       setIsExecuting(false);
     }
   };
+
+  const voteHelperText = !currentAddress
+    ? "Connect your wallet to vote."
+    : pendingVote !== undefined
+      ? "Vote submitted. Waiting for on-chain confirmation."
+      : effectiveHasVoted
+        ? "You have already voted on this proposal."
+        : votingClosed
+          ? "Voting is closed for this proposal."
+          : "Your vote will be submitted on-chain immediately.";
 
   return (
     <div className="space-y-8 pb-32 md:pb-0">
@@ -173,7 +208,7 @@ export default function ProposalDetailPage({
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-green-400">For</span>
-              <span className="text-gray-400">{proposal?.votesFor ?? 0} votes</span>
+              <span className="text-gray-400">{displayedVotesFor} votes</span>
             </div>
             <div className="w-full bg-stellar-border rounded-full h-2">
               <div className="bg-green-500 h-2 rounded-full" style={{ width: `${forPercent}%` }} />
@@ -182,7 +217,7 @@ export default function ProposalDetailPage({
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-red-400">Against</span>
-              <span className="text-gray-400">{proposal?.votesAgainst ?? 0} votes</span>
+              <span className="text-gray-400">{displayedVotesAgainst} votes</span>
             </div>
             <div className="w-full bg-stellar-border rounded-full h-2">
               <div className="bg-red-500 h-2 rounded-full" style={{ width: `${againstPercent}%` }} />
@@ -240,14 +275,21 @@ export default function ProposalDetailPage({
           <VoteButton
             proposalId={id}
             voteFor={true}
-            votingClosed={proposal ? (proposal.status !== "Active" || proposal.endsAt * 1000 <= nowMs) : false}
+            hasVoted={effectiveHasVoted}
+            votingClosed={votingClosed}
+            isPending={pendingVote !== undefined}
+            onVoteSuccess={loadProposal}
           />
           <VoteButton
             proposalId={id}
             voteFor={false}
-            votingClosed={proposal ? (proposal.status !== "Active" || proposal.endsAt * 1000 <= nowMs) : false}
+            hasVoted={effectiveHasVoted}
+            votingClosed={votingClosed}
+            isPending={pendingVote !== undefined}
+            onVoteSuccess={loadProposal}
           />
         </div>
+        <p className="mt-3 text-xs text-gray-400">{voteHelperText}</p>
       </div>
     </div>
   );

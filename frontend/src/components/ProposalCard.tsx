@@ -91,6 +91,6 @@ export function ProposalCard({
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
-};
+}

@@ -13,7 +13,7 @@
 }
 
 body {
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   background: var(--bg-darker);
   color: #e2e8f0;
   -webkit-font-smoothing: antialiased;

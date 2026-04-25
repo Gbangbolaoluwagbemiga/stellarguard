@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
-import { cn } from './Shimmer';
-import { X } from 'lucide-react';
-import { parseXlmToStroops } from '@/lib/formatters';
+import React, { useState } from "react";
+import { X } from "lucide-react";
+import { parseXlmToStroops } from "@/lib/formatters";
+import { isValidStellarAddress } from "@/lib/stellarAddress";
+import { cn } from "./Shimmer";
 
 interface WithdrawalModalProps {
   isOpen: boolean;
@@ -14,16 +15,17 @@ interface WithdrawalModalProps {
 }
 
 export function WithdrawalModal({ isOpen, onClose, onPropose, balance, isProposing }: WithdrawalModalProps) {
-  const [to, setTo] = useState('');
-  const [amount, setAmount] = useState('');
-  const [memo, setMemo] = useState('');
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [memo, setMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const balanceXlm = Number(balance) / 10 ** 7;
   const amountNum = Number(amount);
-  const isValidAddress = to.startsWith('G') && to.length === 56;
+  const normalizedRecipient = to.trim();
+  const isValidAddress = isValidStellarAddress(normalizedRecipient);
   const isValidAmount = !isNaN(amountNum) && amountNum > 0 && amountNum <= balanceXlm;
   const isValid = isValidAddress && isValidAmount && memo.trim().length > 0;
 
@@ -37,12 +39,12 @@ export function WithdrawalModal({ isOpen, onClose, onPropose, balance, isProposi
     try {
       setError(null);
       const stroops = parseXlmToStroops(amount);
-      await onPropose(to, stroops, memo.trim());
+      await onPropose(normalizedRecipient, stroops, memo.trim());
       onClose();
       // Reset form
-      setTo('');
-      setAmount('');
-      setMemo('');
+      setTo("");
+      setAmount("");
+      setMemo("");
     } catch (err: any) {
       setError(err.message || "Failed to propose withdrawal. Please try again.");
     }
@@ -64,7 +66,7 @@ export function WithdrawalModal({ isOpen, onClose, onPropose, balance, isProposi
             <input
               id="to"
               type="text"
-              placeholder="G..."
+              placeholder="G... or C..."
               value={to}
               onChange={(e) => {
                 setTo(e.target.value);
@@ -76,7 +78,7 @@ export function WithdrawalModal({ isOpen, onClose, onPropose, balance, isProposi
               )}
               disabled={isProposing}
             />
-            {to && !isValidAddress && <p className="text-sm text-rose-500">Invalid Stellar address</p>}
+            {to && !isValidAddress && <p className="text-sm text-rose-500">Enter a valid Stellar account or contract address</p>}
           </div>
 
           <div className="space-y-2">

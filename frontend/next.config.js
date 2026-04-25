@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   // Stellar SDK requires these for browser compatibility
   webpack: (config) => {
     config.resolve.fallback = {
