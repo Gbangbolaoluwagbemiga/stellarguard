@@ -79,6 +79,32 @@ Events:
 - `(treasury, thresh)` payload example: `(old_threshold, new_threshold)`
 - `(treasury, admin)` payload example: `(old_admin, new_admin)`
 
+### Deposit flow
+
+`deposit(from, amount)` is **not** a bookkeeping-only call. The contract
+performs an on-chain SEP-41 transfer from the depositor into itself before
+updating its stored balance:
+
+1. The contract enforces that it is initialized and that `amount > 0`.
+2. `from.require_auth()` fires, so the depositor must sign the invocation
+   (or, in tests, be mocked via `mock_all_auths()`).
+3. The contract loads the configured `Asset` (the SAC/SEP-41 contract that
+   was passed to `initialize`) and constructs a `token::TokenClient`.
+4. `token_client.transfer(&from, &env.current_contract_address(), &amount)`
+   moves the funds on-chain. If the depositor lacks the balance the SAC
+   contract panics and the deposit is reverted atomically — no partial
+   bookkeeping is written.
+5. Only after the transfer succeeds does the contract increment
+   `DataKey::Balance` and emit `(treasury, deposit)`.
+
+`deposit_token(from, token_address, amount)` follows the same pattern but
+targets an arbitrary SEP-41 token contract and persists balances under the
+per-`(depositor, token)` key `DataKey::TokenBalance`.
+
+The asymmetry with `propose_withdrawal` / `execute` is deliberate:
+withdrawals require multisig approval before the same `token_client.transfer`
+is invoked from the contract address to the recipient.
+
 ## Governance Contract
 
 Location: `smartcontract/contracts/governance`
