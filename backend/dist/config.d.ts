@@ -4,6 +4,8 @@ export interface Config {
     networkPassphrase: string;
     contractIds: string[];
     pollIntervalMs: number;
+    corsOrigin: string | string[];
+    nodeEnv: string;
 }
 export declare function loadConfig(): Config;
 export declare const config: Config;

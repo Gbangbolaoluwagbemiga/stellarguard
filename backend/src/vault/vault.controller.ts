@@ -6,6 +6,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
+import { Public } from "../decorators/public.decorator";
 import { z } from "zod";
 import { VaultService } from "./vault.service";
 
@@ -27,6 +28,7 @@ const paginationSchema = z.object({
 });
 
 @Controller("api/vault")
+@Public()
 export class VaultController {
   constructor(private readonly vaultService: VaultService) {}
 

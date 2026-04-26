@@ -4,6 +4,8 @@ export declare const TransactionSchema: z.ZodObject<{
     contract_id: z.ZodString;
     topic_1: z.ZodNullable<z.ZodString>;
     topic_2: z.ZodNullable<z.ZodString>;
+    event_name: z.ZodNullable<z.ZodString>;
+    event_topics: z.ZodAny;
     event_data: z.ZodAny;
     ledger: z.ZodNumber;
     timestamp: z.ZodNullable<z.ZodNumber>;
@@ -16,8 +18,10 @@ export declare const TransactionSchema: z.ZodObject<{
     contract_id: string;
     topic_1: string | null;
     topic_2: string | null;
+    event_name: string | null;
     ledger: number;
     created_at: string;
+    event_topics?: any;
     event_data?: any;
 }, {
     cursor: string | null;
@@ -26,8 +30,10 @@ export declare const TransactionSchema: z.ZodObject<{
     contract_id: string;
     topic_1: string | null;
     topic_2: string | null;
+    event_name: string | null;
     ledger: number;
     created_at: string;
+    event_topics?: any;
     event_data?: any;
 }>;
 export declare class TreasuryService {
@@ -49,8 +55,10 @@ export declare class TreasuryService {
         contract_id: string;
         topic_1: string | null;
         topic_2: string | null;
+        event_name: string | null;
         ledger: number;
         created_at: string;
+        event_topics?: any;
         event_data?: any;
     }[]>;
     getTransactionById(id: string): Promise<{
@@ -60,8 +68,10 @@ export declare class TreasuryService {
         contract_id: string;
         topic_1: string | null;
         topic_2: string | null;
+        event_name: string | null;
         ledger: number;
         created_at: string;
+        event_topics?: any;
         event_data?: any;
     } | null>;
     getSigners(): Promise<string[]>;

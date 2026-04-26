@@ -22,6 +22,8 @@ exports.TransactionSchema = zod_1.z.object({
     contract_id: zod_1.z.string(),
     topic_1: zod_1.z.string().nullable(),
     topic_2: zod_1.z.string().nullable(),
+    event_name: zod_1.z.string().nullable(),
+    event_topics: zod_1.z.any(),
     event_data: zod_1.z.any(),
     ledger: zod_1.z.number(),
     timestamp: zod_1.z.number().nullable(),

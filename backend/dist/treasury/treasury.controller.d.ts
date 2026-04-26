@@ -19,8 +19,10 @@ export declare class TreasuryController {
         contract_id: string;
         topic_1: string | null;
         topic_2: string | null;
+        event_name: string | null;
         ledger: number;
         created_at: string;
+        event_topics?: any;
         event_data?: any;
     }[]>;
     getTransaction(id: string): Promise<{
@@ -30,8 +32,10 @@ export declare class TreasuryController {
         contract_id: string;
         topic_1: string | null;
         topic_2: string | null;
+        event_name: string | null;
         ledger: number;
         created_at: string;
+        event_topics?: any;
         event_data?: any;
     }>;
     getSigners(): Promise<{

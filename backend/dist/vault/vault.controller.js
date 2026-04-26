@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VaultController = void 0;
 const common_1 = require("@nestjs/common");
+const public_decorator_1 = require("../decorators/public.decorator");
 const zod_1 = require("zod");
 const vault_service_1 = require("./vault.service");
 const paginationSchema = zod_1.z.object({
@@ -111,6 +112,7 @@ __decorate([
 ], VaultController.prototype, "getStats", null);
 exports.VaultController = VaultController = __decorate([
     (0, common_1.Controller)("api/vault"),
+    (0, public_decorator_1.Public)(),
     __metadata("design:paramtypes", [vault_service_1.VaultService])
 ], VaultController);
 //# sourceMappingURL=vault.controller.js.map

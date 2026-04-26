@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GovernanceController = void 0;
 const common_1 = require("@nestjs/common");
+const public_decorator_1 = require("../decorators/public.decorator");
 const zod_1 = require("zod");
 const governance_service_1 = require("./governance.service");
 const paginationSchema = zod_1.z.object({
@@ -103,6 +104,7 @@ __decorate([
 ], GovernanceController.prototype, "getConfig", null);
 exports.GovernanceController = GovernanceController = __decorate([
     (0, common_1.Controller)("api/governance"),
+    (0, public_decorator_1.Public)(),
     __metadata("design:paramtypes", [governance_service_1.GovernanceService])
 ], GovernanceController);
 //# sourceMappingURL=governance.controller.js.map

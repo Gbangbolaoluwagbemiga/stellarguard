@@ -88,14 +88,12 @@ function parseRawEvent(rawEvent) {
     const { topic1, topic2, allTopics } = parseTopics(rawEvent.topic);
     const data = parseEventData(rawEvent.value);
     const eventName = getEventName(topic1, topic2);
-    if (eventName) {
-        data._eventName = eventName;
-    }
-    data._topics = allTopics;
     return {
         contractId: rawEvent.contractId,
         topic1,
         topic2,
+        eventName,
+        eventTopics: allTopics,
         data,
         ledger: rawEvent.ledger,
         timestamp: null,

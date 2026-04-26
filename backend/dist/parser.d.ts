@@ -11,6 +11,8 @@ export interface ParsedEvent {
     contractId: string;
     topic1: string | null;
     topic2: string | null;
+    eventName: string | null;
+    eventTopics: unknown[] | null;
     data: Record<string, unknown>;
     ledger: number;
     timestamp: number | null;

@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS events (
   contract_id TEXT NOT NULL,
   topic_1 TEXT,
   topic_2 TEXT,
+  event_name TEXT,
+  event_topics JSONB,
   event_data JSONB,
   ledger INTEGER NOT NULL,
   timestamp BIGINT,
@@ -28,6 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_events_contract ON events(contract_id);
 CREATE INDEX IF NOT EXISTS idx_events_topics ON events(topic_1, topic_2);
 CREATE INDEX IF NOT EXISTS idx_events_ledger ON events(ledger);
 CREATE INDEX IF NOT EXISTS idx_events_cursor ON events(cursor);
+CREATE INDEX IF NOT EXISTS idx_events_name ON events(event_name);
 
 CREATE TABLE IF NOT EXISTS event_cursor (
   id INTEGER PRIMARY KEY DEFAULT 1,
@@ -47,11 +50,13 @@ async function initializeSchema() {
     }
 }
 async function insertEvent(event) {
-    await exports.pool.query(`INSERT INTO events (contract_id, topic_1, topic_2, event_data, ledger, timestamp, cursor)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`, [
+    await exports.pool.query(`INSERT INTO events (contract_id, topic_1, topic_2, event_name, event_topics, event_data, ledger, timestamp, cursor)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [
         event.contract_id,
         event.topic_1,
         event.topic_2,
+        event.event_name,
+        event.event_topics ? JSON.stringify(event.event_topics) : null,
         JSON.stringify(event.event_data),
         event.ledger,
         event.timestamp,
@@ -65,11 +70,13 @@ async function insertEvents(events) {
     try {
         await client.query("BEGIN");
         for (const event of events) {
-            await client.query(`INSERT INTO events (contract_id, topic_1, topic_2, event_data, ledger, timestamp, cursor)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`, [
+            await client.query(`INSERT INTO events (contract_id, topic_1, topic_2, event_name, event_topics, event_data, ledger, timestamp, cursor)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [
                 event.contract_id,
                 event.topic_1,
                 event.topic_2,
+                event.event_name,
+                event.event_topics ? JSON.stringify(event.event_topics) : null,
                 JSON.stringify(event.event_data),
                 event.ledger,
                 event.timestamp,
@@ -100,17 +107,5 @@ async function updateCursor(cursor, lastLedger) {
     await exports.pool.query(`INSERT INTO event_cursor (id, cursor, last_ledger, updated_at)
      VALUES (1, $1, $2, NOW())
      ON CONFLICT (id) DO UPDATE SET cursor = $1, last_ledger = $2, updated_at = NOW()`, [cursor, lastLedger]);
-}
-// When run directly, initialize the schema
-if (require.main === module) {
-    initializeSchema()
-        .then(() => {
-        console.log("Migration complete.");
-        process.exit(0);
-    })
-        .catch((err) => {
-        console.error("Migration failed:", err);
-        process.exit(1);
-    });
 }
 //# sourceMappingURL=db.js.map

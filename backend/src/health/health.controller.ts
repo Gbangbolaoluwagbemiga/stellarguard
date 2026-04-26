@@ -1,4 +1,6 @@
 import { Controller, Get } from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { Public } from "../decorators/public.decorator";
 import { pool } from "../db";
 import { config } from "../config";
 
@@ -20,9 +22,13 @@ interface HealthStatus {
   };
 }
 
+@ApiTags('health')
 @Controller("api/health")
 export class HealthController {
+  @Public()
   @Get()
+  @ApiOperation({ summary: 'Check API health status' })
+  @ApiResponse({ status: 200, description: 'Health check successful' })
   async getHealth(): Promise<HealthStatus> {
     const timestamp = new Date().toISOString();
     const checks: HealthStatus["checks"] = {

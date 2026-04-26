@@ -5,6 +5,8 @@ export interface StoredEvent {
     contract_id: string;
     topic_1: string | null;
     topic_2: string | null;
+    event_name: string | null;
+    event_topics: unknown[] | null;
     event_data: Record<string, unknown>;
     ledger: number;
     timestamp: number | null;
