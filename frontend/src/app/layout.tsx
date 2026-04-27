@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { SecureExternalLink } from "@/components/SecureExternalLink";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
@@ -106,9 +107,9 @@ export default function RootLayout({
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center opacity-50 text-sm">
               <p>© 2026 StellarGuard. Built on Stellar Soroban.</p>
               <div className="flex space-x-8 mt-4 md:mt-0">
-                <a href="#" className="hover:text-white transition-colors">Documentation</a>
-                <a href="#" className="hover:text-white transition-colors">Github</a>
-                <a href="#" className="hover:text-white transition-colors">Support</a>
+                <SecureExternalLink href="https://github.com/xqcxx/stellarguard#readme" className="hover:text-white transition-colors">Documentation</SecureExternalLink>
+                <SecureExternalLink href="https://github.com/xqcxx/stellarguard" className="hover:text-white transition-colors">Github</SecureExternalLink>
+                <SecureExternalLink href="https://github.com/xqcxx/stellarguard/discussions" className="hover:text-white transition-colors">Support</SecureExternalLink>
               </div>
             </div>
           </footer>

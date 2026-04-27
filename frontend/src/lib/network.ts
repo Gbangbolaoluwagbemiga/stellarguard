@@ -36,14 +36,23 @@ export const NETWORKS = {
 // Active Network
 // ============================================================================
 
-/** The currently active network. Change this for deployment. */
-export const ACTIVE_NETWORK = NETWORKS.testnet;
+function resolveActiveNetwork(): (typeof NETWORKS)[keyof typeof NETWORKS] {
+  const key = (
+    process.env.NEXT_PUBLIC_NETWORK ?? "testnet"
+  ).toLowerCase() as keyof typeof NETWORKS;
+  return key in NETWORKS ? NETWORKS[key] : NETWORKS.testnet;
+}
 
-/** Soroban RPC URL for the active network. */
-export const SOROBAN_RPC_URL = ACTIVE_NETWORK.sorobanRpcUrl;
+/** The currently active network, resolved from NEXT_PUBLIC_NETWORK (defaults to testnet). */
+export const ACTIVE_NETWORK = resolveActiveNetwork();
 
-/** Horizon API URL for the active network. */
-export const HORIZON_URL = ACTIVE_NETWORK.horizonUrl;
+/** Soroban RPC URL — overridable via NEXT_PUBLIC_SOROBAN_RPC_URL. */
+export const SOROBAN_RPC_URL =
+  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? ACTIVE_NETWORK.sorobanRpcUrl;
+
+/** Horizon API URL — overridable via NEXT_PUBLIC_HORIZON_URL. */
+export const HORIZON_URL =
+  process.env.NEXT_PUBLIC_HORIZON_URL ?? ACTIVE_NETWORK.horizonUrl;
 
 /** Network passphrase for the active network. */
 export const NETWORK_PASSPHRASE = ACTIVE_NETWORK.networkPassphrase;
@@ -55,11 +64,14 @@ export const ACTIVE_NETWORK_KEY = Object.entries(NETWORKS).find(
 // Helpers
 // ============================================================================
 
-/**
- * Get a Soroban RPC server instance.
- */
+let _serverInstance: SorobanRpc.Server | null = null;
+
+/** Returns the shared Soroban RPC server singleton. Prefer sorobanClient in new code. */
 export function getServer(): SorobanRpc.Server {
-  return new SorobanRpc.Server(SOROBAN_RPC_URL);
+  if (!_serverInstance) {
+    _serverInstance = new SorobanRpc.Server(SOROBAN_RPC_URL);
+  }
+  return _serverInstance;
 }
 
 /**

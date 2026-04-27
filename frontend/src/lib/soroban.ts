@@ -19,7 +19,7 @@ import { signTransaction } from "@stellar/freighter-api";
 import type { Decoder, GovernanceProposalAction } from "./contractData";
 import { readPublicEnv, requirePublicEnv } from "./env";
 import { throwIfAborted } from "./requestGuard";
-import { SOROBAN_RPC_URL, NETWORK_PASSPHRASE } from "./network";
+import { NETWORK_PASSPHRASE } from "./network";
 import { sorobanClient } from "./sorobanClient";
 
 // ============================================================================
@@ -35,12 +35,6 @@ export const CONTRACT_IDS = {
 
 const READONLY_SIMULATION_ACCOUNT_ENV =
   "NEXT_PUBLIC_SOROBAN_SIMULATION_ACCOUNT";
-
-// ============================================================================
-// Server Instance (kept for backward-compat; prefer sorobanClient in new code)
-// ============================================================================
-
-const server = new SorobanRpc.Server(SOROBAN_RPC_URL);
 
 const GOVERNANCE_ACTIONS: readonly GovernanceProposalAction[] = [
   "Funding",

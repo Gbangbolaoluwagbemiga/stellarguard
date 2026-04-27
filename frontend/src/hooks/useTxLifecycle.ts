@@ -98,12 +98,9 @@ export function useTxLifecycle() {
           const built = await steps.build();
 
           setStage("signing");
-          // signing and submitting are sequential but happen inside signAndSubmit;
-          // we advance to "submitting" immediately after the sign call resolves so
-          // the UI shows deterministic progress.
-          setStage("submitting");
           const result = await steps.sign(built);
-
+          // signing stage persists while the wallet popup is open; only advance
+          // to confirming once the signed transaction has been submitted.
           setStage("confirming");
 
           if (runIdRef.current === runId) {
