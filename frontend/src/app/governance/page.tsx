@@ -127,7 +127,7 @@ export default function GovernancePage() {
         data.title,
         data.description,
         data.action,
-        Number(data.amount),
+        data.amount,
         data.target,
       );
       const cfg = await getConfig();

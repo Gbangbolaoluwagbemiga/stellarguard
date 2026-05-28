@@ -230,7 +230,7 @@ export async function buildCreateProposalTx(
   title: string,
   description: string,
   action: GovernanceProposalAction,
-  amount: number,
+  amount: bigint | number,
   target: string,
 ): Promise<TransactionBuilder> {
   const args = [
@@ -251,7 +251,7 @@ export async function buildCreateProposalXdr(
   title: string,
   description: string,
   action: GovernanceProposalAction,
-  amount: number,
+  amount: bigint | number,
   target: string,
 ): Promise<string> {
   return buildTransactionXdr(

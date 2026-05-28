@@ -146,7 +146,7 @@ export function useGovernance() {
     title: string,
     description: string,
     action: GovernanceProposalAction,
-    amount: number,
+    amount: bigint,
     target: string,
   ): Promise<void> => {
     if (!address) throw new Error("Wallet not connected");
