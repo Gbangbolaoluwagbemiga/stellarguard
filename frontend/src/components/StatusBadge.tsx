@@ -14,12 +14,21 @@ const STATUS_STYLES: Record<ProposalStatus, string> = {
   Expired: "bg-gray-900/50 text-gray-300 border-gray-700",
 };
 
+const STATUS_ICONS: Record<ProposalStatus, string> = {
+  Active: "●",
+  Passed: "✓",
+  Rejected: "✗",
+  Executed: "✓",
+  Expired: "○",
+};
+
 export function StatusBadge({ status, size = "sm" }: StatusBadgeProps) {
   const sizeClass = size === "md" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
   return (
     <span
-      className={`inline-flex items-center rounded-full border font-semibold ${sizeClass} ${STATUS_STYLES[status]}`}
+      className={`inline-flex items-center gap-1 rounded-full border font-semibold ${sizeClass} ${STATUS_STYLES[status]}`}
     >
+      <span aria-hidden="true">{STATUS_ICONS[status]}</span>
       {status}
     </span>
   );

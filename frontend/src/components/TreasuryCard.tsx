@@ -71,16 +71,16 @@ export const TreasuryCard: React.FC<TreasuryCardProps> = ({
         </div>
         <div>
           {executed ? (
-            <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-500 border border-green-500/20">
-              Executed
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-500 border border-green-500/20">
+              <span aria-hidden="true">✓</span> Executed
             </span>
           ) : isReadyToExecute ? (
-            <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-500 border border-blue-500/20">
-              Ready to Execute
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-500 border border-blue-500/20">
+              <span aria-hidden="true">▶</span> Ready to Execute
             </span>
           ) : (
-            <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2.5 py-0.5 text-xs font-medium text-yellow-500 border border-yellow-500/20">
-              Pending Approvals
+            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 px-2.5 py-0.5 text-xs font-medium text-yellow-500 border border-yellow-500/20">
+              <span aria-hidden="true">○</span> Pending Approvals
             </span>
           )}
         </div>

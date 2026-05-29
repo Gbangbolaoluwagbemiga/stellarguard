@@ -20,7 +20,7 @@ import type { GovernanceProposalAction } from "./contractData";
 import type { Decoder } from "./sorobanClient";
 import { readPublicEnv, requirePublicEnv } from "./env";
 import { throwIfAborted } from "./requestGuard";
-import { NETWORK_PASSPHRASE } from "./network";
+import { NETWORK_PASSPHRASE, TX_TIMEOUT } from "./network";
 import { sorobanClient } from "./sorobanClient";
 
 // ============================================================================
@@ -63,7 +63,7 @@ export async function buildContractCall(
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(contract.call(method, ...args))
-    .setTimeout(30);
+    .setTimeout(TX_TIMEOUT);
 
   return tx;
 }

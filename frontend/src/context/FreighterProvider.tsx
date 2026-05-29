@@ -58,6 +58,12 @@ export const FreighterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     checkConnection();
   }, [checkConnection]);
 
+  useEffect(() => {
+    const handleFocus = () => void checkConnection();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [checkConnection]);
+
   const connect = async () => {
     setIsConnecting(true);
     setError(null);

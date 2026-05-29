@@ -60,6 +60,14 @@ export const ACTIVE_NETWORK_KEY = Object.entries(NETWORKS).find(
   ([, network]) => network.networkPassphrase === NETWORK_PASSPHRASE,
 )?.[0] as keyof typeof NETWORKS | undefined;
 
+/**
+ * Transaction time-bound in seconds. Configurable via NEXT_PUBLIC_TX_TIMEOUT.
+ * Defaults to 300 s on mainnet (slow wallets need more time) and 30 s elsewhere.
+ */
+export const TX_TIMEOUT =
+  Number(process.env.NEXT_PUBLIC_TX_TIMEOUT) ||
+  (ACTIVE_NETWORK_KEY === "mainnet" ? 300 : 30);
+
 // ============================================================================
 // Helpers
 // ============================================================================

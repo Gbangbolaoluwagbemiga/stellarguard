@@ -14,7 +14,7 @@ import {
   xdr,
   scValToNative,
 } from "@stellar/stellar-sdk";
-import { SOROBAN_RPC_URL, NETWORK_PASSPHRASE } from "./network";
+import { SOROBAN_RPC_URL, NETWORK_PASSPHRASE, TX_TIMEOUT } from "./network";
 
 // ── Poll policy ───────────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ export class SorobanClient {
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(new Contract(contractId).call(method, ...args))
-      .setTimeout(30)
+      .setTimeout(TX_TIMEOUT)
       .build();
 
     const sim = await this.simulate(tx, signal);
