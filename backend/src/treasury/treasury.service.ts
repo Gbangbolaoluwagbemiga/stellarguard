@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { SorobanRpc } from "@stellar/stellar-sdk";
 import { config } from "../config";
 import { pool } from "../db";
+import { CacheService } from "../cache/cache.service";
 import { z } from "zod";
 
 // Define transaction schema for validation
@@ -24,7 +25,7 @@ export class TreasuryService {
   private readonly logger = new Logger(TreasuryService.name);
   private readonly server: SorobanRpc.Server;
 
-  constructor() {
+  constructor(private readonly cache: CacheService) {
     this.server = new SorobanRpc.Server(config.sorobanRpcUrl);
   }
 
@@ -32,24 +33,36 @@ export class TreasuryService {
     const contractId = process.env.TREASURY_CONTRACT_ID;
     if (!contractId) throw new Error("TREASURY_CONTRACT_ID not configured");
 
+    const cacheKey = `treasury:balance:${contractId}`;
+    const cached = await this.cache.get<string>(cacheKey);
+    if (cached) return cached;
+
     // For now, return a placeholder balance
     // In a real implementation, this would query the contract via RPC
     // or read from the indexed database
-    return "1000.0000000";
+    const balance = "1000.0000000";
+    await this.cache.set(cacheKey, balance, 30);
+    return balance;
   }
 
   async getConfig() {
     const contractId = process.env.TREASURY_CONTRACT_ID;
     if (!contractId) throw new Error("TREASURY_CONTRACT_ID not configured");
 
+    const cacheKey = `treasury:config:${contractId}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+
     // Mocking config return based on contract struct
-    return {
+    const configData = {
       admin: "G...",
       threshold: 2,
       signer_count: 3,
       balance: "1000000000",
       tx_count: 10,
     };
+    await this.cache.set(cacheKey, configData, 60);
+    return configData;
   }
 
   async getTransactions(page: number = 1, limit: number = 10) {
@@ -72,6 +85,12 @@ export class TreasuryService {
   }
 
   async getSigners() {
-    return ["GBVQBPV3...", "GDI67..."];
+    const cacheKey = "treasury:signers";
+    const cached = await this.cache.get<string[]>(cacheKey);
+    if (cached) return cached;
+
+    const signers = ["GBVQBPV3...", "GDI67..."];
+    await this.cache.set(cacheKey, signers, 300);
+    return signers;
   }
 }

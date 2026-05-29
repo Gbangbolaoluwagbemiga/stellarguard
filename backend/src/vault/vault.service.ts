@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { pool } from "../db";
+import { CacheService } from "../cache/cache.service";
 import { z } from "zod";
 
 export const LockSchema = z.object({
@@ -45,6 +46,8 @@ export interface VaultStats {
 @Injectable()
 export class VaultService {
   private readonly logger = new Logger(VaultService.name);
+
+  constructor(private readonly cache: CacheService) {}
 
   async getLocks(page: number = 1, limit: number = 10) {
     const offset = (page - 1) * limit;
@@ -159,13 +162,19 @@ export class VaultService {
       throw new Error("TOKEN_VAULT_CONTRACT_ID not configured");
     }
 
+    const cacheKey = `vault:stats:${contractId}`;
+    const cached = await this.cache.get<VaultStats>(cacheKey);
+    if (cached) return cached;
+
     // In a real implementation, this would aggregate from the database
-    return {
+    const stats = {
       total_locked: "50000000000",
       total_vesting: "100000000000",
       total_claimed: "20000000000",
       active_locks: 15,
       active_vestings: 8,
     };
+    await this.cache.set(cacheKey, stats, 60);
+    return stats;
   }
 }

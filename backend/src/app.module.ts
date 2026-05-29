@@ -11,6 +11,7 @@ import { VaultService } from "./vault/vault.service";
 import { ListenerService } from "./listener.service";
 import { ApiKeyGuard } from "./guards/api-key.guard";
 import { RequestLoggerMiddleware } from "./middleware/request-logger.middleware";
+import { CacheModule } from "./cache/cache.module";
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RequestLoggerMiddleware } from "./middleware/request-logger.middleware"
         limit: 100, // 100 requests
       },
     ]),
+    CacheModule,
   ],
   controllers: [
     HealthController,

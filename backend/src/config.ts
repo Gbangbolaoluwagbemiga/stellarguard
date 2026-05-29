@@ -5,6 +5,7 @@ dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
 
 export interface Config {
   databaseUrl: string;
+  redisUrl: string;
   sorobanRpcUrl: string;
   networkPassphrase: string;
   contractIds: string[];
@@ -132,6 +133,7 @@ export function loadConfig(): Config {
 
   const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS || "5000", 10);
   const dbPoolMax = parseInt(process.env.DB_POOL_MAX || "10", 10);
+  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
   const contractIds = getContractIds();
   const corsOrigin = parseCorsOrigin(nodeEnv);
 
@@ -153,6 +155,7 @@ export function loadConfig(): Config {
 
   const config: Config = {
     databaseUrl,
+    redisUrl,
     sorobanRpcUrl,
     networkPassphrase,
     contractIds,

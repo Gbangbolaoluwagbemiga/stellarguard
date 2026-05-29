@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { pool } from "../db";
+import { CacheService } from "../cache/cache.service";
 import { z } from "zod";
 
 export const ProposalSchema = z.object({
@@ -41,6 +42,8 @@ export interface Proposal {
 @Injectable()
 export class GovernanceService {
   private readonly logger = new Logger(GovernanceService.name);
+
+  constructor(private readonly cache: CacheService) {}
 
   async getProposals(
     page: number = 1,
@@ -118,9 +121,15 @@ export class GovernanceService {
   }
 
   async getMembers(): Promise<string[]> {
+    const cacheKey = "governance:members";
+    const cached = await this.cache.get<string[]>(cacheKey);
+    if (cached) return cached;
+
     // In a real implementation, this would query the contract
     // For now, return mock members
-    return ["GABC123...", "GDEF456...", "GHIJ789..."];
+    const members = ["GABC123...", "GDEF456...", "GHIJ789..."];
+    await this.cache.set(cacheKey, members, 300);
+    return members;
   }
 
   async getConfig(): Promise<GovernanceConfig> {
@@ -130,14 +139,20 @@ export class GovernanceService {
       throw new Error("GOVERNANCE_CONTRACT_ID not configured");
     }
 
+    const cacheKey = `governance:config:${contractId}`;
+    const cached = await this.cache.get<GovernanceConfig>(cacheKey);
+    if (cached) return cached;
+
     // In a real implementation, this would query the contract
-    return {
+    const configData = {
       admin: "GADMIN...",
       member_count: 3,
       quorum_percent: 50,
       voting_period: 1000,
       proposal_count: 10,
     };
+    await this.cache.set(cacheKey, configData, 60);
+    return configData;
   }
 
   async getProposalVotes(id: string) {
