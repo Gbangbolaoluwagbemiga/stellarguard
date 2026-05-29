@@ -29,6 +29,19 @@ const securityHeaders = [
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  // HSTS: force HTTPS for 2 years, cover subdomains, enable browser preload list.
+  // Skipped in dev so local HTTP still works.
+  ...(isDev
+    ? []
+    : [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=63072000; includeSubDomains; preload",
+        },
+      ]),
+  // Hint to browsers that they may use DNS pre-fetching for performance,
+  // while still honouring the rest of the security policy.
+  { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
 /** @type {import('next').NextConfig} */

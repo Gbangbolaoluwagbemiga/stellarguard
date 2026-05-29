@@ -10,6 +10,12 @@ export interface Config {
   networkPassphrase: string;
   contractIds: string[];
   pollIntervalMs: number;
+  /** Minimum poll interval when events are actively flowing (ms). Default 2 000. */
+  minPollIntervalMs: number;
+  /** Maximum poll interval during idle periods with no on-chain activity (ms). Default 30 000. */
+  maxPollIntervalMs: number;
+  /** Step multiplier applied to the interval after each empty poll. Default 1.5. */
+  pollBackoffFactor: number;
   corsOrigin: string | string[];
   nodeEnv: string;
   dbPoolMax: number;
@@ -132,6 +138,9 @@ export function loadConfig(): Config {
   }
 
   const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS || "5000", 10);
+  const minPollIntervalMs = parseInt(process.env.MIN_POLL_INTERVAL_MS || "2000", 10);
+  const maxPollIntervalMs = parseInt(process.env.MAX_POLL_INTERVAL_MS || "30000", 10);
+  const pollBackoffFactor = parseFloat(process.env.POLL_BACKOFF_FACTOR || "1.5");
   const dbPoolMax = parseInt(process.env.DB_POOL_MAX || "10", 10);
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
   const contractIds = getContractIds();
@@ -160,6 +169,9 @@ export function loadConfig(): Config {
     networkPassphrase,
     contractIds,
     pollIntervalMs,
+    minPollIntervalMs,
+    maxPollIntervalMs,
+    pollBackoffFactor,
     corsOrigin,
     nodeEnv,
     dbPoolMax,
