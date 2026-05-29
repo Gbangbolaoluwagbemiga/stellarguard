@@ -73,7 +73,7 @@ const EVENT_NAMES: Record<string, Record<string, string>> = {
  */
 export function getEventName(
   topic1: string | null,
-  topic2: string | null
+  topic2: string | null,
 ): string | null {
   if (!topic1 || !topic2) return null;
   return EVENT_NAMES[topic1]?.[topic2] ?? null;
@@ -104,7 +104,11 @@ export function parseTopics(topics: xdr.ScVal[]): {
 export function parseEventData(value: xdr.ScVal): Record<string, unknown> {
   const decoded = decodeScVal(value);
 
-  if (decoded !== null && typeof decoded === "object" && !Array.isArray(decoded)) {
+  if (
+    decoded !== null &&
+    typeof decoded === "object" &&
+    !Array.isArray(decoded)
+  ) {
     return decoded as Record<string, unknown>;
   }
 
@@ -125,6 +129,11 @@ export function parseRawEvent(rawEvent: {
   const { topic1, topic2, allTopics } = parseTopics(rawEvent.topic);
   const rawData = parseEventData(rawEvent.value);
   const eventName = getEventName(topic1, topic2);
+  const enrichedData = {
+    ...data,
+    ...(eventName ? { _eventName: eventName } : {}),
+    _topics: allTopics,
+  };
 
   const data: Record<string, unknown> = {
     ...rawData,
@@ -138,7 +147,7 @@ export function parseRawEvent(rawEvent: {
     topic2,
     eventName,
     eventTopics: allTopics,
-    data,
+    data: enrichedData,
     ledger: rawEvent.ledger,
     timestamp: null,
     cursor: rawEvent.pagingToken,

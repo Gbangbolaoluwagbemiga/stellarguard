@@ -56,7 +56,7 @@ export class GovernanceService {
     }
 
     let query = "SELECT * FROM events WHERE contract_id = $1";
-    const params: any[] = [contractId];
+    const params: unknown[] = [contractId];
     let paramIndex = 2;
 
     // Filter by topic_2 for proposal events

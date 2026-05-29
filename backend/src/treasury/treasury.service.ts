@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { SorobanRpc, Address, Contract } from "@stellar/stellar-sdk";
+import { SorobanRpc } from "@stellar/stellar-sdk";
 import { config } from "../config";
 import { pool } from "../db";
 import { z } from "zod";

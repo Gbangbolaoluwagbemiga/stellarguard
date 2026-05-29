@@ -14,7 +14,7 @@ export interface Config {
   dbPoolMax: number;
 }
 
-function getContractIds(): string[] {
+export function getContractIds(): string[] {
   const ids: string[] = [];
   const envKeys = [
     "TREASURY_CONTRACT_ID",

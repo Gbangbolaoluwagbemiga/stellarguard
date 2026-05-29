@@ -29,6 +29,8 @@ function buildEventRow(overrides: Partial<Record<string, unknown>> = {}) {
     contract_id: "CTREASURY",
     topic_1: "treasury",
     topic_2: "deposit",
+    event_name: "Treasury Deposit",
+    event_topics: ["treasury", "deposit"],
     event_data: { amount: "1000" },
     ledger: 100,
     timestamp: 1700000000,
