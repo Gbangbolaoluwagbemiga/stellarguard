@@ -5,7 +5,7 @@ import { useFreighter } from "@/hooks/useFreighter";
 import { useTreasury } from "@/hooks/useTreasury";
 import { useGovernance } from "@/hooks/useGovernance";
 import { formatXlm } from "@/lib/formatters";
-import { Shimmer } from "@/components/Shimmer";
+import { MetricCardSkeleton } from "@/components/Skeletons";
 
 export default function Home() {
   const { address } = useFreighter();
@@ -44,67 +44,67 @@ export default function Home() {
 
       {/* Stats Grid */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card text-center">
-          <p className="text-sm text-gray-400 uppercase tracking-wide">
-            Treasury Balance
-          </p>
-          {isLoading ? (
-            <div className="mt-2">
-              <Shimmer className="h-9 w-32 mx-auto" />
-            </div>
-          ) : isConnected ? (
-            <p className="text-3xl font-bold text-white mt-2">
-              {formatXlm(balance)}
-            </p>
-          ) : (
-            <>
-              <p className="text-3xl font-bold text-white mt-2">— XLM</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Connect wallet to view
+        {isLoading ? (
+          <>
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+          </>
+        ) : (
+          <>
+            <div className="card text-center">
+              <p className="text-sm text-gray-400 uppercase tracking-wide">
+                Treasury Balance
               </p>
-            </>
-          )}
-        </div>
-        <div className="card text-center">
-          <p className="text-sm text-gray-400 uppercase tracking-wide">
-            Active Proposals
-          </p>
-          {isLoading ? (
-            <div className="mt-2">
-              <Shimmer className="h-9 w-20 mx-auto" />
+              {isConnected ? (
+                <p className="text-3xl font-bold text-white mt-2">
+                  {formatXlm(balance)}
+                </p>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-white mt-2">— XLM</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Connect wallet to view
+                  </p>
+                </>
+              )}
             </div>
-          ) : isConnected ? (
-            <p className="text-3xl font-bold text-white mt-2">
-              {activeProposals}
-            </p>
-          ) : (
-            <>
-              <p className="text-3xl font-bold text-white mt-2">—</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Connect wallet to view
+            <div className="card text-center">
+              <p className="text-sm text-gray-400 uppercase tracking-wide">
+                Active Proposals
               </p>
-            </>
-          )}
-        </div>
-        <div className="card text-center">
-          <p className="text-sm text-gray-400 uppercase tracking-wide">
-            Total Signers
-          </p>
-          {isLoading ? (
-            <div className="mt-2">
-              <Shimmer className="h-9 w-16 mx-auto" />
+              {isConnected ? (
+                <p className="text-3xl font-bold text-white mt-2">
+                  {activeProposals}
+                </p>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-white mt-2">—</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Connect wallet to view
+                  </p>
+                </>
+              )}
             </div>
-          ) : isConnected ? (
-            <p className="text-3xl font-bold text-white mt-2">{totalSigners}</p>
-          ) : (
-            <>
-              <p className="text-3xl font-bold text-white mt-2">—</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Connect wallet to view
+            <div className="card text-center">
+              <p className="text-sm text-gray-400 uppercase tracking-wide">
+                Total Signers
               </p>
-            </>
-          )}
-        </div>
+              {isConnected ? (
+                <p className="text-3xl font-bold text-white mt-2">
+                  {totalSigners}
+                </p>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-white mt-2">—</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Connect wallet to view
+                  </p>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       {/* Empty State for When No Data is Available */}

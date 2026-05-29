@@ -117,6 +117,25 @@ describe("getEventName", () => {
     expect(getEventName("treasury", null)).toBeNull();
     expect(getEventName(null, null)).toBeNull();
   });
+
+  it("resolves all access-control event names", () => {
+    expect(getEventName("acl", "init")).toBe("Access Control Initialize");
+    expect(getEventName("acl", "assign")).toBe("Access Control Assign");
+    expect(getEventName("acl", "revoke")).toBe("Access Control Revoke");
+    expect(getEventName("acl", "owner")).toBe("Access Control Owner Change");
+  });
+
+  it("resolves vault emergency event names", () => {
+    expect(getEventName("vault", "emrg_ap")).toBe("Vault Emergency Approve");
+    expect(getEventName("vault", "emrg_ex")).toBe("Vault Emergency Execute");
+  });
+
+  it("resolves all vault event names", () => {
+    expect(getEventName("vault", "lock")).toBe("Vault Lock");
+    expect(getEventName("vault", "claim")).toBe("Vault Claim");
+    expect(getEventName("vault", "vest")).toBe("Vault Vest");
+    expect(getEventName("vault", "v_claim")).toBe("Vault Vesting Claim");
+  });
 });
 
 describe("parseRawEvent", () => {
@@ -152,4 +171,75 @@ describe("parseRawEvent", () => {
     expect(result.data._eventName).toBeUndefined();
     expect(result.data._topics).toEqual(["foo", "bar"]);
   });
+
+  it("resolves an access-control event end-to-end", () => {
+    const result = parseRawEvent({
+      contractId: "CACL",
+      topic: [symbolScVal("acl"), symbolScVal("assign")],
+      value: i128ScVal(0n),
+      ledger: 10,
+      pagingToken: "acl-1",
+    });
+
+    expect(result.topic1).toBe("acl");
+    expect(result.topic2).toBe("assign");
+    expect(result.eventName).toBe("Access Control Assign");
+    expect(result.data._eventName).toBe("Access Control Assign");
+    expect(result.data._topics).toEqual(["acl", "assign"]);
+  });
+
+  it("resolves a vault emergency event end-to-end", () => {
+    const result = parseRawEvent({
+      contractId: "CVAULT",
+      topic: [symbolScVal("vault"), symbolScVal("emrg_ap")],
+      value: i128ScVal(0n),
+      ledger: 20,
+      pagingToken: "vault-emrg-1",
+    });
+
+    expect(result.topic1).toBe("vault");
+    expect(result.topic2).toBe("emrg_ap");
+    expect(result.eventName).toBe("Vault Emergency Approve");
+    expect(result.data._eventName).toBe("Vault Emergency Approve");
+    expect(result.data._topics).toEqual(["vault", "emrg_ap"]);
+  });
+});
+
+describe("EVENT_NAMES cross-reference mapping", () => {
+  const EXPECTED_EVENTS: Array<[string, string, string]> = [
+    ["treasury", "deposit", "Treasury Deposit"],
+    ["treasury", "propose", "Treasury Propose"],
+    ["treasury", "approve", "Treasury Approve"],
+    ["treasury", "execute", "Treasury Execute"],
+    ["treasury", "init", "Treasury Initialize"],
+    ["treasury", "dep_tok", "Treasury Deposit Token"],
+    ["treasury", "add_sig", "Treasury Add Signer"],
+    ["treasury", "rem_sig", "Treasury Remove Signer"],
+    ["treasury", "thresh", "Treasury Threshold Change"],
+    ["treasury", "admin", "Treasury Admin Change"],
+    ["gov", "propose", "Governance Propose"],
+    ["gov", "vote", "Governance Vote"],
+    ["gov", "finalize", "Governance Finalize"],
+    ["gov", "exec", "Governance Execute"],
+    ["gov", "init", "Governance Initialize"],
+    ["gov", "admin", "Governance Admin Change"],
+    ["gov", "quorum", "Governance Quorum Change"],
+    ["vault", "lock", "Vault Lock"],
+    ["vault", "claim", "Vault Claim"],
+    ["vault", "vest", "Vault Vest"],
+    ["vault", "v_claim", "Vault Vesting Claim"],
+    ["vault", "emrg_ap", "Vault Emergency Approve"],
+    ["vault", "emrg_ex", "Vault Emergency Execute"],
+    ["acl", "init", "Access Control Initialize"],
+    ["acl", "assign", "Access Control Assign"],
+    ["acl", "revoke", "Access Control Revoke"],
+    ["acl", "owner", "Access Control Owner Change"],
+  ];
+
+  it.each(EXPECTED_EVENTS)(
+    "maps (%s, %s) → %s",
+    (topic1, topic2, expectedName) => {
+      expect(getEventName(topic1, topic2)).toBe(expectedName);
+    },
+  );
 });

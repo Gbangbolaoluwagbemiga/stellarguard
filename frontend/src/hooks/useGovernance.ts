@@ -338,6 +338,16 @@ export function useGovernance() {
     }
   }, [fetchConfig]);
 
+  // Clear stale data and cancel in-flight requests when the wallet disconnects.
+  useEffect(() => {
+    if (!address) {
+      requestGuardRef.current.cancel("Wallet disconnected.");
+      setConfig(null);
+      setPendingVotes(new Map());
+      setError(null);
+    }
+  }, [address]);
+
   useEffect(() => {
     refresh();
     const interval = setInterval(() => {

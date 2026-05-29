@@ -441,6 +441,18 @@ export function useTreasury() {
     setError(null);
   }, []);
 
+  // Clear stale data and cancel in-flight requests when the wallet disconnects.
+  useEffect(() => {
+    if (!address) {
+      requestGuardRef.current.cancel("Wallet disconnected.");
+      setBalance(BigInt(0));
+      setConfig(null);
+      setTransactions([]);
+      setError(null);
+      setTxActions(new Map());
+    }
+  }, [address]);
+
   useEffect(() => {
     const requestGuard = requestGuardRef.current;
     refresh();

@@ -57,6 +57,14 @@ const EVENT_NAMES: Record<string, Record<string, string>> = {
     claim: "Vault Claim",
     vest: "Vault Vest",
     v_claim: "Vault Vesting Claim",
+    emrg_ap: "Vault Emergency Approve",
+    emrg_ex: "Vault Emergency Execute",
+  },
+  acl: {
+    init: "Access Control Initialize",
+    assign: "Access Control Assign",
+    revoke: "Access Control Revoke",
+    owner: "Access Control Owner Change",
   },
 };
 
@@ -115,9 +123,14 @@ export function parseRawEvent(rawEvent: {
   pagingToken: string;
 }): ParsedEvent {
   const { topic1, topic2, allTopics } = parseTopics(rawEvent.topic);
-  const data = parseEventData(rawEvent.value);
-
+  const rawData = parseEventData(rawEvent.value);
   const eventName = getEventName(topic1, topic2);
+
+  const data: Record<string, unknown> = {
+    ...rawData,
+    _topics: allTopics,
+    ...(eventName ? { _eventName: eventName } : {}),
+  };
 
   return {
     contractId: rawEvent.contractId,

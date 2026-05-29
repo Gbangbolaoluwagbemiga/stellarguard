@@ -17,6 +17,27 @@ function Bone({ className }: { className?: string }) {
   );
 }
 
+// ── Metric card skeleton (dashboard, #323) ───────────────────────────────
+
+/**
+ * Compact skeleton for the three dashboard metric cards (Treasury Balance,
+ * Active Proposals, Total Signers). Preserves card dimensions during initial
+ * load and uses the same bg-white/10 pattern as RouteSkeleton.
+ */
+export function MetricCardSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn("card text-center animate-pulse", className)}
+      aria-label="Loading metric"
+      aria-busy="true"
+    >
+      <Bone className="h-3.5 w-28 mx-auto" />
+      <Bone className="h-9 w-24 mx-auto mt-2" />
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
+}
+
 // ── Stats card skeleton (#114) ────────────────────────────────────────────
 
 /**
